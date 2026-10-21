@@ -6,6 +6,7 @@ pub const NODES: usize = 9;
 const FILL: f64 = 0.8;
 const PRNU: f64 = 0.005;
 const WINDOW: f64 = 2.5;
+const UNMEASURABLE: f64 = 1.0;
 
 pub struct Node {
     pub lam: f64,
@@ -157,9 +158,9 @@ pub fn assess(s: &Setup, nodes: &[Node], r: Readout) -> Assessment {
             i += b;
         }
         sigma.push(if fisher > 0.0 {
-            1.0 / fisher.sqrt()
+            (1.0 / fisher.sqrt()).min(UNMEASURABLE)
         } else {
-            f64::INFINITY
+            UNMEASURABLE
         });
         snr.push(best.0 / best.1.sqrt());
         peak_e.push(signal);

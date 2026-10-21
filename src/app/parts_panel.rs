@@ -97,6 +97,16 @@ impl PartsPanel {
         }
     }
 
+    pub fn demo(&mut self) {
+        self.selection = Selection {
+            pinhole: Some("Thorlabs P25D (25 um pinhole)".into()),
+            lens: Some("Thorlabs AC254-050-A (achromat f=50)".into()),
+            objective: Some("Newport SFPX040 (N-SF11 PCX, uncoated)".into()),
+            grating: Some("Thorlabs GT25-03 (300/mm transmission)".into()),
+            stop: None,
+        };
+    }
+
     pub fn ui(
         &mut self,
         ui: &mut Ui,

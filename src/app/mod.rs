@@ -50,11 +50,15 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(tab: usize, page: usize, _open: bool) -> Self {
+    pub fn new(tab: usize, page: usize, demo: bool) -> Self {
         let model = Arc::new(system::model());
         let sweep = sweep::Sweep::new(&model);
         let optimize = optimize::Optimize::new(&model);
         crate::physics::confocal::warm_background();
+        let mut parts = parts_panel::PartsPanel::new();
+        if demo {
+            parts.demo();
+        }
         Self {
             inputs: model.defaults(),
             model,
@@ -74,7 +78,7 @@ impl App {
             sweep,
             sensitivity: sensitivity::Sensitivity::new(),
             optimize,
-            parts: parts_panel::PartsPanel::new(),
+            parts,
             verify_page: page.min(6),
             objective: Default::default(),
             status: String::new(),

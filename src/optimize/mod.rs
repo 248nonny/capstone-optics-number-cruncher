@@ -98,7 +98,10 @@ mod tests {
             })
             .unwrap();
         assert!(with_parts.effective.na.unwrap() > 0.0 && with_parts.effective.au.unwrap() > 0.0);
-        assert!(rows.iter().any(|r| r.selection == Selection::default()));
+        assert!(rows.iter().all(|r| r.selection.pinhole.is_some()
+            && r.selection.lens.is_some()
+            && r.selection.objective.is_some()
+            && r.selection.grating.is_none()));
     }
 
     #[test]
@@ -120,5 +123,86 @@ mod tests {
             6,
         );
         assert!(!rows.is_empty() && rows.len() <= 6);
+    }
+}
+
+#[cfg(test)]
+mod demo {
+    use super::*;
+    use crate::engine::get::Get;
+    use crate::parts::Selection;
+    use crate::system;
+    use std::sync::Arc;
+
+    #[test]
+    #[ignore]
+    fn print_a_real_optimisation() {
+        crate::physics::confocal::warm();
+        let model = Arc::new(system::model());
+        let ids = ["opt.na", "opt.au", "spc.disp"];
+        let vars = ids
+            .iter()
+            .map(|id| problem::DesignVar::new(&model, model.index[*id]))
+            .collect();
+        let p = problem::Problem {
+            base: model.defaults(),
+            model: model.clone(),
+            vars,
+            objective: problem::Objective::default(),
+        };
+        let x0 = p.start();
+        let (c0, k0) = p.evaluate(&x0);
+        let t0 = std::time::Instant::now();
+        let t = methods::run(
+            methods::Method::GradientThenNelderMead,
+            &|u| p.cost(u),
+            &x0,
+            60,
+            &mut |_, _, _| false,
+        );
+        let (c1, k1) = p.evaluate(&t.x);
+        let (k0, k1) = (k0.unwrap(), k1.unwrap());
+        println!(
+            "time {:.2}s evals {} stalled {}",
+            t0.elapsed().as_secs_f64(),
+            t.evals,
+            t.stalled
+        );
+        println!("cost {c0:.3} -> {c1:.3}; lateral {:.2} -> {:.2} um; noise {:.0} -> {:.0} nm; strehl {:.2} -> {:.2}; fill {:.2} -> {:.2}", k0.lateral * 1e6, k1.lateral * 1e6, k0.height * 1e9, k1.height * 1e9, k0.strehl, k1.strehl, k0.fill, k1.fill);
+        for (id, x) in p.values_at(&t.x) {
+            println!("  {id} = {x:.5e}");
+        }
+        let lib = crate::parts::library();
+        let ctx = discrete::Ctx {
+            lib: &lib,
+            base: &model.defaults(),
+            objective: &problem::Objective::default(),
+        };
+        let rows = discrete::evaluate_all(
+            &ctx,
+            discrete::all(&lib, [true, true, true, true], &Selection::default()),
+        );
+        println!("{} combinations; best:", rows.len());
+        for r in rows.iter().take(3) {
+            println!(
+                "  cost {:.2} na {:?} au {:?} t {:?} {:?}",
+                r.cost,
+                r.effective.na.map(|x| (x * 1000.0).round() / 1000.0),
+                r.effective.au.map(|x| (x * 100.0).round() / 100.0),
+                r.effective.t,
+                [
+                    &r.selection.pinhole,
+                    &r.selection.lens,
+                    &r.selection.objective,
+                    &r.selection.grating
+                ]
+                .iter()
+                .map(|s| s
+                    .as_deref()
+                    .map(|n| n.split(" (").next().unwrap_or(n).to_string()))
+                .collect::<Vec<_>>()
+            );
+        }
+        println!("{}", model.defaults().g("opt.na"));
     }
 }

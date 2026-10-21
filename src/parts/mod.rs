@@ -100,12 +100,9 @@ pub fn effective(lib: &Library, sel: &Selection, target_na: f64) -> Effective {
             e.magnification = Some(f0 / param(l, "f").unwrap_or(f64::NAN));
         }
     }
-    let ts: Vec<f64> = [lens, obj]
-        .iter()
-        .flatten()
-        .filter_map(|c| param(c, "t"))
-        .collect();
-    e.t = (!ts.is_empty()).then(|| ts.iter().product());
+    e.t = lens
+        .zip(obj)
+        .and_then(|(l, o)| Some(param(l, "t")? * param(o, "t")?));
     if let (Some(p), Some(l), Some(na), Some(f_o)) = (pin, lens, e.na, f0) {
         let (d, f_c) = (
             param(p, "d").unwrap_or(f64::NAN),

@@ -28,9 +28,7 @@ fn slot_mut(sel: &mut Selection, k: usize) -> &mut Option<String> {
 }
 
 pub fn options(lib: &Library, kind: &str) -> Vec<Option<String>> {
-    std::iter::once(None)
-        .chain(lib.of_kind(kind).map(|c| Some(c.name.clone())))
-        .collect()
+    lib.of_kind(kind).map(|c| Some(c.name.clone())).collect()
 }
 
 pub fn count(lib: &Library, include: [bool; 4]) -> usize {
