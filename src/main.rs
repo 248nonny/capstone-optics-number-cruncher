@@ -2,6 +2,7 @@ mod engine;
 mod model;
 mod optimize;
 mod physics;
+mod system;
 mod ui;
 
 fn main() -> eframe::Result {

@@ -305,6 +305,14 @@ impl Bank {
     pub fn plane_at(&self, lam: f64, u: f64) -> f64 {
         self.blend(lam, |a| a.plane_at(u))
     }
+
+    pub fn mirror_fwhm_u(&self, lam: f64) -> f64 {
+        self.blend(lam, |a| a.mirror_fwhm_u())
+    }
+
+    pub fn plane_fwhm_u(&self, lam: f64) -> f64 {
+        self.blend(lam, |a| a.plane_fwhm_u())
+    }
 }
 
 pub fn lateral_profile(lam: f64, na: [f64; 2], radius: [f64; 2], step: f64, n: usize) -> Vec<f64> {

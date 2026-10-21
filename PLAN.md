@@ -629,3 +629,9 @@ The surface can sit anywhere in the depth range, and the wavelength that is in f
 4. The parts panel with write-back, the combinatorial search and snap-to-parts.
 5. Sweep, optimiser and a Sensitivity view working on the flat vector.
 6. Only then delete `State`, the formulas and the constraints tab, and port persistence and the Verify checks.
+
+---
+
+## 10. Progress log (overnight redesign)
+
+- Step 1 done: `src/system/` holds the flat system layer (17 inputs, polychromatic nodes across 450-670 nm, automatic exposure/binning/read-out). Windowed Fisher information matches the full spectrum within 2 %, a full evaluation takes about 4 ms once the tables are warm. The old engine and UI are untouched and still work.

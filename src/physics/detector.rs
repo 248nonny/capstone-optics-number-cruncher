@@ -22,6 +22,22 @@ fn single_ended(g: &dyn Get) -> bool {
     g.g("det.mode") > 0.5
 }
 
+pub const CONVERSION_GAIN: f64 = 5e-6;
+pub const DARK_V_PER_S: f64 = 0.8;
+pub const MAX_READ_CLOCK: f64 = 54e6;
+
+pub fn read_noise_at(fread: f64) -> f64 {
+    log_interp(&NOISE_V, fread) / CONVERSION_GAIN
+}
+
+pub fn full_well_at(fread: f64) -> f64 {
+    log_interp(&SWING_V, fread) / CONVERSION_GAIN
+}
+
+pub fn dark_rate_at(celsius: f64) -> f64 {
+    DARK_V_PER_S / CONVERSION_GAIN * 2f64.powf((celsius - 25.0) / 8.0)
+}
+
 pub fn read_noise_e(g: &dyn Get) -> f64 {
     let k = if single_ended(g) { SE_NOISE } else { 1.0 };
     k * log_interp(&NOISE_V, g.g("det.fread")) / g.g("det.cg")
@@ -56,6 +72,9 @@ pub fn digital_noise_e(g: &dyn Get) -> f64 {
 pub fn clocks(g: &dyn Get) -> f64 {
     CLOCKS[g.g("det.bin") as usize]
 }
+
+pub const CLOCKS_FULL: [f64; 3] = CLOCKS;
+pub const CLOCKS_ROI: [f64; 3] = [515.0, 259.0, 131.0];
 
 pub fn overhead_s() -> f64 {
     OVERHEAD_CLK / OSC_HZ

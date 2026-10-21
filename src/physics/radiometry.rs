@@ -11,8 +11,15 @@ pub fn photon_energy(lam: f64) -> f64 {
     H * C / lam
 }
 
+pub const LED_FLUX_REF: f64 = 122.0;
+pub const LED_SIDE: f64 = 1.1e-3;
+
+pub fn flux_at(flux_ref: f64, current: f64) -> f64 {
+    flux_ref * (current / 0.35).powf(FLUX_EXPONENT)
+}
+
 pub fn flux_lm(g: &dyn Get) -> f64 {
-    g.g("led.flux_ref") * (g.g("led.i") / 0.35).powf(FLUX_EXPONENT)
+    flux_at(g.g("led.flux_ref"), g.g("led.i"))
 }
 
 fn mean_v() -> f64 {
@@ -33,12 +40,20 @@ fn compute_mean_v() -> f64 {
     num / (0..n).map(|k| l.at(at(k))).sum::<f64>()
 }
 
+pub fn watts(lumens: f64) -> f64 {
+    lumens / (LUMEN_PER_WATT * mean_v())
+}
+
 pub fn flux_w(g: &dyn Get) -> f64 {
-    flux_lm(g) / (LUMEN_PER_WATT * mean_v())
+    watts(flux_lm(g))
+}
+
+pub fn radiance_of(lumens: f64, side: f64) -> f64 {
+    watts(lumens) / (std::f64::consts::PI * side * side)
 }
 
 pub fn radiance(g: &dyn Get) -> f64 {
-    flux_w(g) / (std::f64::consts::PI * g.g("led.side").powi(2))
+    radiance_of(flux_lm(g), g.g("led.side"))
 }
 
 pub fn per_nm(radiance: f64, lam: f64) -> f64 {

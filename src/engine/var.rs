@@ -20,6 +20,8 @@ pub struct VarDef {
     pub ideal: Option<f64>,
     pub hide: Option<(&'static str, f64)>,
     pub doc: &'static str,
+    pub related: &'static [&'static str],
+    pub refs: &'static [(&'static str, &'static str)],
 }
 
 impl VarDef {
@@ -47,7 +49,19 @@ impl VarDef {
             ideal: None,
             hide: None,
             doc: "",
+            related: &[],
+            refs: &[],
         }
+    }
+
+    pub fn see(mut self, related: &'static [&'static str]) -> Self {
+        self.related = related;
+        self
+    }
+
+    pub fn refs(mut self, refs: &'static [(&'static str, &'static str)]) -> Self {
+        self.refs = refs;
+        self
     }
 
     pub fn design(mut self) -> Self {
@@ -63,6 +77,11 @@ impl VarDef {
 
     pub fn hidden_if_ideal(mut self) -> Self {
         self.hide = Some(("on", 1.0));
+        self
+    }
+
+    pub fn hide_when(mut self, local: &'static str, value: f64) -> Self {
+        self.hide = Some((local, value));
         self
     }
 
