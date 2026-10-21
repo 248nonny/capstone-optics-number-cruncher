@@ -1,0 +1,5 @@
+name = "Edmund 56-282 (50 um pinhole)"
+kind = "pin"
+note = "50 um +-5 um, 0.03 mm thick stainless."
+[params]
+d = 50e-6

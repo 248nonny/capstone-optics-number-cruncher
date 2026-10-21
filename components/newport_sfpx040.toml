@@ -1,0 +1,9 @@
+name = "Newport SFPX040 (N-SF11 PCX, uncoated)"
+kind = "obj"
+note = "12.7 mm dia, EFL 12.7 mm at 587.6 nm, clear aperture 11.7 mm. Centre thickness is a guess."
+[params]
+f = 0.0127
+lamf = 587.6e-9
+glass = 0
+t = 0.86
+ct = 0.004

@@ -1,0 +1,8 @@
+name = "Thorlabs MPD01M9-P01 (90 deg OAP, f=33)"
+kind = "lens"
+note = "Protected silver, 12.7 mm, reflected focal length 33 mm. Listing data, verify."
+[params]
+f = 0.033
+d = 0.0127
+dfrac = 0.0
+t = 0.95

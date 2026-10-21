@@ -1,0 +1,13 @@
+name = "ADS8860 (16-bit 1 MS/s SPI) + single-ended epc901"
+kind = "adc"
+note = "Unipolar 0..Vref input, SPI. Conversion time estimated, verify."
+[params]
+on = 1
+bits = 16
+fs = 1e6
+range = 2.5
+noise = 1.0
+tconv = 700e-9
+iface = 1
+"det.mode" = 1
+"det.fread" = 1e6

@@ -1,25 +1,13 @@
-use eframe::egui;
+mod engine;
+mod model;
+mod physics;
+mod ui;
 
-fn main() -> Result<(), eframe::Error> {
-    let options = eframe::NativeOptions::default();
-
-    eframe::run_native(
-        "Hello egui",
-        options,
-        Box::new(|_cc| Ok(Box::new(MyApp {}))),
-    )
-}
-
-struct MyApp {}
-
-impl eframe::App for MyApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.label("Hello World!");
-
-            if ui.button("Hello, world!").clicked() {
-                println!("Hello, world!");
-            }
-        });
-    }
+fn main() -> eframe::Result {
+    let arg = |i: usize| std::env::args().nth(i).and_then(|a| a.parse().ok()).unwrap_or(0);
+    let options = eframe::NativeOptions {
+        viewport: eframe::egui::ViewportBuilder::default().with_inner_size([1500.0, 950.0]),
+        ..Default::default()
+    };
+    eframe::run_native("Chromatic confocal number cruncher", options, Box::new(move |_| Ok(Box::new(ui::App::new(arg(1), arg(2), arg(3) > 0)))))
 }

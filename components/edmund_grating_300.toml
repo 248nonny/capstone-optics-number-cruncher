@@ -1,0 +1,8 @@
+name = "Edmund 300/mm 17.5 deg grating (id 10092)"
+kind = "spec"
+note = "400-700 nm. Stock number to verify."
+[params]
+lines = 300e3
+blaze = 588e-9
+eta = 0.65
+eta_w = 200e-9

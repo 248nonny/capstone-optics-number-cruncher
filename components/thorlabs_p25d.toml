@@ -1,0 +1,5 @@
+name = "Thorlabs P25D (25 um pinhole)"
+kind = "pin"
+note = "Part number from memory, verify."
+[params]
+d = 25e-6

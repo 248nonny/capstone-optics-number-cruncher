@@ -1,0 +1,8 @@
+name = "Thorlabs GT25-03 (300/mm transmission)"
+kind = "spec"
+note = "17.5 deg blaze, 25 mm square. Efficiency is an estimate."
+[params]
+lines = 300e3
+blaze = 588e-9
+eta = 0.7
+eta_w = 200e-9

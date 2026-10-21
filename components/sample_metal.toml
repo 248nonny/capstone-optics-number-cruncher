@@ -1,0 +1,5 @@
+name = "Machined metal"
+kind = "sample"
+[params]
+r = 0.5
+spec = 0.3

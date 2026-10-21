@@ -59,7 +59,12 @@
 
         pname = "capstone-optics-number-cruncher";
         version = "0.1.0";
-        src = craneLib.cleanCargoSource ./.;
+        src = pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter =
+            path: type:
+            (craneLib.filterCargoSources path type) || (builtins.match ".*/(data|components)(/.*)?" path != null);
+        };
         strictDeps = true;
       };
 

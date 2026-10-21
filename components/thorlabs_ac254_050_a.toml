@@ -1,0 +1,8 @@
+name = "Thorlabs AC254-050-A (achromat f=50)"
+kind = "lens"
+note = "25.4 mm achromat, 400-700 nm AR. Part number from memory, verify."
+[params]
+f = 0.05
+d = 0.0254
+dfrac = 0.0005
+t = 0.97

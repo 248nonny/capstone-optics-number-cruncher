@@ -1,0 +1,8 @@
+name = "Thorlabs AC127-019-A (achromat f=19)"
+kind = "lens"
+note = "N-BAF10/N-SF6HT achromat, 12.7 mm, 400-700 nm AR. Listing data, verify."
+[params]
+f = 0.019
+d = 0.0127
+dfrac = 0.0005
+t = 0.97

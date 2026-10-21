@@ -1,0 +1,5 @@
+name = "PCB / solder"
+kind = "sample"
+[params]
+r = 0.4
+spec = 0.5

@@ -1,0 +1,5 @@
+name = "Mirror (aluminium)"
+kind = "sample"
+[params]
+r = 0.9
+spec = 1.0

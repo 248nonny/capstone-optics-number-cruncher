@@ -1,0 +1,8 @@
+name = "Edmund 47-662 (12.5 mm VIS achromat f=25)"
+kind = "lens"
+note = "425-675 nm. Stock number from listing, verify."
+[params]
+f = 0.025
+d = 0.0125
+dfrac = 0.0005
+t = 0.96
