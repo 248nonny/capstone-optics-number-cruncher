@@ -526,3 +526,106 @@ It found no sign, factor-of-2 or unit error in the photon-budget chain, the verg
 - **Smaller:** flux-current exponent 0.82 (fits the datasheet curve at 100 mA and 1 A; 0.95 was 15–20 % off); exposure overhead is the flush time only (the sensor is still sensitive during the shift); the pixel resolution term includes the datasheet's 20 % charge crosstalk; diffraction limit uses the illuminated length `W / cos α`; blur no longer attenuates the band edges; the out-of-focus tail of the axial response uses a smoothed envelope instead of one oscillating grid value; "Electrons in the peak" is renamed (it sums the whole spectrum); new warnings for an ADC range that clips or wastes bits, a conversion time longer than the sample period, and single-ended noise used above 1 MHz.
 
 Known simplifications that remain (documented, not fixed): the diffuse-plane response uses one common defocus for illumination and detection (exact only for a mirror; negligible for the default achromats); the Cramér–Rao bound assumes a known peak shape, amplitude and background (the Monte Carlo centroid is the realistic number); the epc901 frame-store dark current, readout CDS time and the ghost image above 20 MHz are not modelled; the dependent value of a constraint can leave its slider range without being clamped.
+
+---
+
+## 9. Simplification redesign (proposal, awaiting answers; no code written for this section)
+
+### 9.1 Where this sits
+
+The open items before this were: the slit option and common-path preset, 2-D sweeps and snapshot comparison, Zemax-lite (lens description → paraxial `f(λ)`, Seidel and real ray trace, ZMX and AGF import) and finally Typst formula rendering. The redesign comes first. Afterwards Zemax-lite, aberration tables and the slit become features of the real-components panel instead of left-side knobs.
+
+### 9.2 Principles
+
+1. An input is a choice or a requirement. Anything that can be derived is an output.
+2. One knob per independent degree of freedom, in its most intuitive form: Airy units rather than micrometres, NA rather than stop diameter, spectral resolution in nm rather than focal lengths.
+3. Hardware facts (LED, epc901, beam splitter split, image size, wavelength band) are constants, shown on the Verify tab, not knobs.
+4. Second-order effects sit behind default-off toggles.
+5. Related variables are explained in tooltips with links, not exposed as sliders.
+6. A Sensitivity view ranks every knob by its effect on the key outputs (±10 %, central differences, same machinery as the optimiser), so "which knobs matter" is answered by the tool.
+
+### 9.3 Three facts the current model shows (measured with throwaway probes on the existing engine)
+
+- **Magnification does not matter.** At fixed pinhole size in Airy units, changing the collimator focal length from 20 to 200 mm (pinhole 10 to 99 µm, `m` 0.63 to 0.06) leaves lateral FWHM and axial FWHM identical and changes collected electrons by 1.2 % and σ_z by 0.8 % (only the collimator-chromatism term). Reason: the power into the pinhole is `L · (π²/4)(1.22 λ AU)²`, independent of NA and of the pinhole diameter. So magnification only sets the physical pinhole size and belongs in the parts panel.
+- **A "shitty" spectrometer is fine, conditionally.** At NA 0.1 the peak is 21 nm wide and a 4 nm resolution costs 2.7 % in σ_z (8 nm: 10 %). At NA 0.3 the peak is 5.3 nm wide and a 4 nm resolution costs 28 % (8 nm: 88 %). Rule of thumb: resolution below about one fifth of the peak width.
+- **Coarser dispersion is better until the peak spans a handful of pixels** (read-noise-limited regime): σ_z falls from 259 nm at 0.2 nm/px to 109 nm at 3 nm/px (SNR 17 → 122), then resolution blur takes over. An optimiser will drive dispersion to about 5–10 pixels across the peak. This is real physics; the model does not credit the saved read-out time (ROI), so a mostly dark sensor still costs the full line read.
+
+### 9.4 Proposed knobs (about 15 inputs)
+
+| Group | Knob | Notes |
+|---|---|---|
+| Source | LED drive current | excluded from optimisation (no thermal model) |
+| Optical system (collimators + objective as one element) | NA (sample side) | |
+| | Pinhole size, Airy units | identical source and detection pinholes |
+| | Chromatic depth range Δz over the band | a requirement, excluded from optimisation (σ_z scales with dz/dλ) |
+| | Dispersion shape | linear, singlet glass (the real normalised curves), diffractive |
+| | Throughput, one pass | lumps collimator and objective transmission |
+| | Aberrations tick + RMS wavefront at NA 0.1 | scales as NA⁴ (spherical aberration) so the optimiser cannot raise NA for free |
+| | Stray light | the largest unknown of a real confocal |
+| Sample | Reflectance, specular fraction | tilt and height become advanced / plot-only |
+| Spectrometer | Dispersion (nm per pixel) | replaces the grating, focal lengths, slit image, blaze |
+| | Spectral resolution (nm FWHM, not below one pixel) | |
+| | Efficiency (grating and optics) | |
+| Acquisition | Spectra per second | |
+| | Sensor temperature | cooled 15 °C or uncooled 35 °C |
+
+Outputs: lateral FWHM, axial FWHM, depth range and number of resolvable layers, σ_z, SNR, power budget, exposure, read clock and binning (all chosen automatically), saturation, usable band fraction, time per 2000 × 2000 image, field of view, area rate.
+
+Constants: LED and epc901 data, 50:50 beam splitter, 450–650 nm band, 2000 × 2000 image.
+
+Removed: host link, ADC, collimator and objective focal lengths and apertures, stop diameter, pinhole 2, grating parameters, spectrometer focal lengths, beam width, binning, gain, read clock, exposure, the constraints tab and every Real/Ideal switch (throughput = 1 and aberrations off give the same thing).
+
+Automatic acquisition: exposure = min(period − overhead, time for the brightest pixel to reach about 80 % of full well); that depends on the sample, and the saturating case is a mirror. Binning ×1/×2/×4 and the slowest read clock that fits the period are evaluated and the one with the lowest σ_z is kept.
+
+### 9.5 Architecture: two layers
+
+- **System layer:** a flat vector of about 15 independent inputs mapped to outputs. No constraints, settle solver, locks or formulas, so the constraints tab, the `State` machinery and the persistence of sources disappear. Sweeps, the optimiser and the sensitivity view work on a plain vector.
+- **Parts layer (right panel):** catalog parts plus a few physical free values (stop diameter, pinhole choice) mapped to effective system inputs with the existing verified detailed physics. It offers one-shot write-back to the left side, the combinatorial search and snap-to-parts. Zemax-lite, the slit option and aberration tables later extend this layer only.
+- **Faithfulness test:** parts → effective inputs → system outputs must match the detailed model within a few percent (collimator chromatism being the one expected difference).
+- **Migration risks:** the self-checks construct detector values directly, the optimiser's `Problem::state_at` and the discrete search use `State`, persistence, and about half of the tests.
+
+### 9.6 Questions for the user
+
+1. Is spectra per second an input requirement, or should it be an output ("the fastest rate that meets a σ_z target")?
+2. Is the depth range a fixed requirement, or a design variable with a minimum?
+3. Strictly identical detection and source pinholes, or one advanced "detection / source size ratio" knob (a real lever for photon-starved diffuse samples)?
+4. Binning and read clock: automatic best, or fixed ×1?
+
+### 9.7 Decisions from the user
+
+1. Spectra per second is an input requirement.
+2. The chromatic depth range is a fixed requirement (never optimised).
+3. The detection pinhole is identical to the source pinhole by default, with one advanced "detection / source size ratio" knob (default 1).
+4. Binning and the read clock are chosen automatically (the best of ×1/×2/×4 with the slowest clock that fits the period).
+5. The model must not be monochromatic. Resolution and noise are evaluated across the whole band (fixed at 450–670 nm) and reported as mean and worst case.
+
+### 9.8 Polychromatic evaluation (proposal)
+
+The surface can sit anywhere in the depth range, and the wavelength that is in focus then changes (450 nm at one end of the range, 670 nm at the other). Everything that is a function of wavelength in the system (NA, pinhole size in Airy units, Strehl, LED spectrum, QE, grating efficiency, the nonlinear `z(λ)`) therefore makes every height measure differently. Approach:
+
+- A grid of about nine wavelength nodes across 450–670 nm; node `k` stands for a surface at height `z_k = z_eff(λ_k)`.
+- Per node: lateral FWHM at `λ_k` (with `NA(λ_k)` and the pinhole's Airy units at `λ_k`), axial FWHM at `λ_k`, and the Fisher information of the spectrum with the peak at `λ_k`, restricted to a window of pixels around the peak (a few peak widths) so the cost is a few hundred pixels per node, not the whole sensor. That gives `σ_z(λ_k)` and the peak SNR at that height.
+- The axial and pinhole tables already have a wavelength bank; per-node FWHM is interpolated from it.
+- Reported: mean over height (weights proportional to `|dz/dλ|`, so the mean is over the depth range, not over wavelength) and worst case (largest FWHM and σ_z, smallest SNR) for lateral FWHM, axial FWHM, σ_z and SNR, plus the curves versus wavelength and versus height on the Plots tab. The detector-spectrum plot keeps a sample-height control for illustration only.
+- The optimiser's cost uses the worst case by default (switchable to the mean).
+- `NA(λ)` follows the focal-length change implied by the dispersion shape and depth range (`f₀` is recovered from the normalised shape and the range, e.g. `f₀ = V_d · Δz` for a singlet); a linear or diffractive shape with no focal length keeps NA constant.
+- Cost budget: about 9 nodes × 3 windowed spectra plus 9 lateral profiles, well under 10 ms.
+
+### 9.9 Corrections to the polychromatic plan (from review)
+
+- **The in-focus band is 450–670 nm; the spectrometer covers more.** A surface at either end of the depth range focuses 450 or 670 nm light; if the sensor stopped at exactly those wavelengths half of that peak would be cut off and the end nodes would always be the "worst case". The in-focus band sets the depth range, and the spectrometer covers that band plus about one peak width on each side, computed automatically from the current NA. The dispersion knob sets how many pixels the padded band occupies; a warning appears if it does not fit in 1024 px.
+- **One exposure for the whole scan.** Automatic exposure is chosen so that the brightest node (any height) sits at about 80 % of full well. Automatic binning and read-out are chosen on the worst-case σ_z, the metric the optimiser uses.
+- **The optimiser works on smooth quantities.** A true maximum over nodes, a best-of-three binning switch and `min(period, fill time)` are all kinks. The optimiser minimises a soft maximum (a p-norm with p ≈ 8) while the interface reports the true maximum; the gradient-descent → Nelder–Mead fallback is what covers the binning switch.
+- **Windowing test.** A test requires the windowed Fisher σ_z at the node nearest 550 nm to match the current full-spectrum value within about 2 %; the window width is chosen from that test.
+- **Monte Carlo** moves to the Verify tab as a realism check at one height, instead of running at every node.
+- **Read-out region.** The epc901 can read only its centre 512 pixels (515 clocks); when the padded band fits in 512 pixels the automatic read-out choice includes that option, which is a real speed gain at coarse dispersion.
+- **"Turn off an element" is superseded:** throughput = 1 with aberrations off is the ideal element, so there is no per-element switch.
+
+### 9.10 Migration order (keeps the tree building)
+
+1. A flat system-layer evaluator with the polychromatic nodes, reusing the existing physics.
+2. Faithfulness tests: the new layer's 550 nm outputs equal today's outputs, and parts layer → system layer matches the detailed model within a few percent.
+3. The new left panel.
+4. The parts panel with write-back, the combinatorial search and snap-to-parts.
+5. Sweep, optimiser and a Sensitivity view working on the flat vector.
+6. Only then delete `State`, the formulas and the constraints tab, and port persistence and the Verify checks.
