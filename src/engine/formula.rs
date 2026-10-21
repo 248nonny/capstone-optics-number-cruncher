@@ -18,7 +18,14 @@ pub struct Formula {
 }
 
 impl Formula {
-    pub fn new(id: &str, title: &str, vars: &[&str], free: usize, eq: &str, f: impl Fn(&Values, &[String]) -> f64 + Send + Sync + 'static) -> Self {
+    pub fn new(
+        id: &str,
+        title: &str,
+        vars: &[&str],
+        free: usize,
+        eq: &str,
+        f: impl Fn(&Values, &[String]) -> f64 + Send + Sync + 'static,
+    ) -> Self {
         let names: Vec<String> = vars.iter().map(|s| s.to_string()).collect();
         let own = names.clone();
         Self {
@@ -37,11 +44,6 @@ impl Formula {
 
     pub fn always(mut self) -> Self {
         self.always = true;
-        self
-    }
-
-    pub fn off(mut self) -> Self {
-        self.default_on = false;
         self
     }
 

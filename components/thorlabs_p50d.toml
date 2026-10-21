@@ -1,5 +1,5 @@
 name = "Thorlabs P50D (50 um pinhole)"
 kind = "pin"
-note = "Stainless foil, tolerance about +-3 um. Verify."
+note = "Thorlabs D-series pinholes are stainless foil in a 1 inch mount; the older P50C was 50 +-3 um on 25 um foil. Verify the P50D drawing."
 [params]
 d = 50e-6

@@ -2,13 +2,22 @@ mod constraints;
 mod optimize;
 mod plots;
 mod sweep;
+mod verify;
 mod view;
 mod widgets;
 
 use crate::engine::{background::Latest, model::Model, state::State};
-use crate::model::{self, outputs::{self, Evaluation}, persist, train::{default_train, Instance, READOUTS}};
+use crate::model::{
+    self,
+    outputs::{self, Evaluation},
+    persist,
+    train::{default_train, Instance, READOUTS},
+};
 use eframe::egui::{self, CentralPanel, ScrollArea, SidePanel, TopBottomPanel};
-use std::{sync::Arc, time::{Duration, Instant}};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use view::{Action, View};
 
 const SCENARIO: &str = "scenario.toml";
@@ -20,6 +29,7 @@ enum Tab {
     Sweep,
     Constraints,
     Optimize,
+    Verify,
 }
 
 pub struct App {
@@ -35,6 +45,7 @@ pub struct App {
     sweep: sweep::Sweep,
     links: constraints::LinkPicker,
     optimize: optimize::Optimize,
+    verify_page: usize,
     status: String,
     open: bool,
     dirty: bool,
@@ -56,10 +67,18 @@ impl App {
             version: 0,
             shown: None,
             worker: Latest::new(),
-            tab: [Tab::Results, Tab::Plots, Tab::Sweep, Tab::Constraints, Tab::Optimize][tab.min(4)],
+            tab: [
+                Tab::Results,
+                Tab::Plots,
+                Tab::Sweep,
+                Tab::Constraints,
+                Tab::Optimize,
+                Tab::Verify,
+            ][tab.min(5)],
             plot,
             links: constraints::LinkPicker::new(),
             optimize,
+            verify_page: plot.min(5),
             status: String::new(),
             open,
             dirty: true,
@@ -89,7 +108,9 @@ impl App {
                     let idx: Vec<_> = sets.iter().map(|(id, x)| (m.index[id], *x)).collect();
                     s.set_many(&m, &idx);
                 }
-                Action::Parts(parts) => parts.iter().for_each(|(inst, name)| s.apply_component(&m, inst, name)),
+                Action::Parts(parts) => parts
+                    .iter()
+                    .for_each(|(inst, name)| s.apply_component(&m, inst, name)),
             }
         }
     }
@@ -97,22 +118,42 @@ impl App {
     fn refresh(&mut self, ctx: &egui::Context) {
         self.version += 1;
         self.changed_at = Instant::now();
-        self.blocked = (0..self.model.defs.len()).map(|i| if self.model.defs[i].output { None } else { self.state.blocked(&self.model, i) }).collect();
-        let (version, values) = (self.version, self.state.values.clone());
-        let extra: Vec<String> = self.state.conflicts.iter().map(|c| format!("Over-constrained: {c}")).collect();
+        self.blocked = (0..self.model.defs.len())
+            .map(|i| {
+                if self.model.defs[i].output {
+                    None
+                } else {
+                    self.state.blocked(&self.model, i)
+                }
+            })
+            .collect();
+        let (version, values) = (self.version, self.state.effective(&self.model));
+        let extra: Vec<String> = self
+            .state
+            .conflicts
+            .iter()
+            .map(|c| format!("Over-constrained: {c}"))
+            .collect();
         let ctx = ctx.clone();
-        self.worker.submit(move || (version, outputs::evaluate(&values, &extra)), move || ctx.request_repaint());
+        self.worker.submit(
+            move || (version, outputs::evaluate(&values, &extra)),
+            move || ctx.request_repaint(),
+        );
     }
 
     fn save(&mut self) {
-        self.status = match persist::save(&self.model, &self.state).and_then(|t| std::fs::write(SCENARIO, t).map_err(|e| e.to_string())) {
+        self.status = match persist::save(&self.model, &self.state)
+            .and_then(|t| std::fs::write(SCENARIO, t).map_err(|e| e.to_string()))
+        {
             Ok(()) => format!("Saved {SCENARIO}"),
             Err(e) => format!("Save failed: {e}"),
         };
     }
 
     fn load(&mut self) {
-        let loaded = std::fs::read_to_string(SCENARIO).map_err(|e| e.to_string()).and_then(|t| persist::load(&self.model, &mut self.state, &t));
+        let loaded = std::fs::read_to_string(SCENARIO)
+            .map_err(|e| e.to_string())
+            .and_then(|t| persist::load(&self.model, &mut self.state, &t));
         self.dirty |= loaded.is_ok();
         self.status = match loaded {
             Ok(n) => format!("Loaded {n} settings from {SCENARIO}"),
@@ -138,17 +179,50 @@ impl eframe::App for App {
         }
         let mut acts = vec![];
         let (mut save, mut load) = (false, false);
-        let Self { model, state, train, shown, blocked, tab, plot, sweep, links, optimize, status, open, version, changed_at, .. } = self;
+        let Self {
+            model,
+            state,
+            train,
+            shown,
+            blocked,
+            tab,
+            plot,
+            sweep,
+            links,
+            optimize,
+            verify_page,
+            status,
+            open,
+            version,
+            changed_at,
+            ..
+        } = self;
         let behind = shown.as_ref().is_none_or(|(v, _)| v != version);
         let stale = behind && changed_at.elapsed() > Duration::from_millis(150);
         if behind {
             ctx.request_repaint_after(Duration::from_millis(160));
         }
-        let view = View { m: model, s: state, blocked, out: shown.as_ref().map(|(_, e)| &e.values), stale };
-        let warnings: Vec<String> = shown.as_ref().map(|(_, e)| e.flags.clone()).unwrap_or_default();
+        let view = View {
+            m: model,
+            s: state,
+            blocked,
+            out: shown.as_ref().map(|(_, e)| &e.values),
+            stale,
+        };
+        let warnings: Vec<String> = shown
+            .as_ref()
+            .map(|(_, e)| e.flags.clone())
+            .unwrap_or_default();
         TopBottomPanel::top("top").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                for (t, name) in [(Tab::Results, "Results"), (Tab::Plots, "Plots"), (Tab::Sweep, "Sweep"), (Tab::Constraints, "Constraints"), (Tab::Optimize, "Optimize")] {
+                for (t, name) in [
+                    (Tab::Results, "Results"),
+                    (Tab::Plots, "Plots"),
+                    (Tab::Sweep, "Sweep"),
+                    (Tab::Constraints, "Constraints"),
+                    (Tab::Optimize, "Optimize"),
+                    (Tab::Verify, "Verify"),
+                ] {
                     ui.selectable_value(tab, t, name);
                 }
                 ui.separator();
@@ -156,7 +230,11 @@ impl eframe::App for App {
                 load = ui.button("Load scenario").clicked();
                 ui.label(status.as_str());
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let color = if warnings.is_empty() { egui::Color32::LIGHT_GREEN } else { egui::Color32::GOLD };
+                    let color = if warnings.is_empty() {
+                        egui::Color32::LIGHT_GREEN
+                    } else {
+                        egui::Color32::GOLD
+                    };
                     ui.colored_label(color, format!("{} warning(s)", warnings.len()));
                     if stale {
                         ui.weak("updating…");
@@ -164,35 +242,45 @@ impl eframe::App for App {
                 });
             });
         });
-        SidePanel::left("inputs").default_width(480.0).min_width(440.0).show(ctx, |ui| {
-            ScrollArea::vertical().show(ui, |ui| {
-                for i in train.iter().filter(|i| !READOUTS.contains(&i.kind)) {
-                    widgets::section(ui, &view, i, *open, &mut acts);
-                }
-            });
-        });
-        CentralPanel::default().show(ctx, |ui| {
-            for w in &warnings {
-                ui.colored_label(egui::Color32::GOLD, format!("⚠ {w}"));
-            }
-            match *tab {
-                Tab::Results => {
-                    ScrollArea::vertical().show(ui, |ui| results(ui, &view, train, &mut acts));
-                }
-                Tab::Plots => {
-                    ui.horizontal(|ui| {
-                        for (k, name) in plots::KINDS.iter().enumerate() {
-                            ui.selectable_value(plot, k, *name);
+        SidePanel::left("inputs")
+            .default_width(480.0)
+            .min_width(440.0)
+            .show(ctx, |ui| {
+                ScrollArea::both()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        for i in train.iter().filter(|i| !READOUTS.contains(&i.kind)) {
+                            widgets::section(ui, &view, i, *open, &mut acts);
                         }
                     });
-                    if let Some((_, e)) = shown.as_ref() {
-                        plots::draw(ui, *plot, &e.values, &e.signal);
+            });
+        CentralPanel::default().show(ctx, |ui| {
+            ScrollArea::both()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    for w in &warnings {
+                        ui.colored_label(egui::Color32::GOLD, format!("⚠ {w}"));
                     }
-                }
-                Tab::Sweep => sweep.ui(ui, model, state, *version),
-                Tab::Constraints => constraints::ui(ui, &view, links, &mut acts),
-                Tab::Optimize => optimize.ui(ui, model, &view, &mut acts),
-            }
+                    match *tab {
+                        Tab::Results => results(ui, &view, train, &mut acts),
+                        Tab::Plots => {
+                            ui.horizontal(|ui| {
+                                for (k, name) in plots::KINDS.iter().enumerate() {
+                                    ui.selectable_value(plot, k, *name);
+                                }
+                            });
+                            if let Some((_, e)) = shown.as_ref() {
+                                plots::draw(ui, *plot, &e.values, &e.signal);
+                            }
+                        }
+                        Tab::Sweep => sweep.ui(ui, model, state, *version),
+                        Tab::Constraints => constraints::ui(ui, &view, links, &mut acts),
+                        Tab::Optimize => optimize.ui(ui, model, &view, &mut acts),
+                        Tab::Verify => {
+                            verify::ui(ui, verify_page, model, shown.as_ref().map(|(_, e)| e))
+                        }
+                    }
+                });
         });
         self.apply(acts);
         if save {

@@ -17,9 +17,19 @@ struct Saved {
 pub fn save(m: &Model, s: &State) -> Result<String, String> {
     let inputs = m.defs.iter().enumerate().filter(|(_, d)| !d.output);
     let saved = Saved {
-        values: inputs.clone().map(|(i, d)| (d.id.clone(), s.values.v[i])).collect(),
-        components: inputs.filter_map(|(i, d)| Some((d.id.clone(), s.locked[i].clone()?))).collect(),
-        constraints: m.formulas.iter().zip(&s.active).map(|(f, &on)| (f.id.clone(), on)).collect(),
+        values: inputs
+            .clone()
+            .map(|(i, d)| (d.id.clone(), s.values.v[i]))
+            .collect(),
+        components: inputs
+            .filter_map(|(i, d)| Some((d.id.clone(), s.locked[i].clone()?)))
+            .collect(),
+        constraints: m
+            .formulas
+            .iter()
+            .zip(&s.active)
+            .map(|(f, &on)| (f.id.clone(), on))
+            .collect(),
         links: s.links.clone(),
     };
     toml::to_string(&saved).map_err(|e| e.to_string())
@@ -38,7 +48,11 @@ pub fn load(m: &Model, s: &mut State, text: &str) -> Result<usize, String> {
     for (f, on) in m.formulas.iter().zip(s.active.iter_mut()) {
         *on = saved.constraints.get(&f.id).copied().unwrap_or(*on);
     }
-    s.links = saved.links.into_iter().filter(|(a, b)| m.index.contains_key(a) && m.index.contains_key(b)).collect();
+    s.links = saved
+        .links
+        .into_iter()
+        .filter(|(a, b)| m.index.contains_key(a) && m.index.contains_key(b))
+        .collect();
     s.settle(m, &[]);
     Ok(n)
 }
@@ -53,12 +67,25 @@ mod tests {
         let m = build();
         let mut s = State::new(&m);
         s.set(&m, "pin1.d", 33e-6);
-        s.apply_component(&m, "adc", "LTC2225 (12-bit 10 MS/s parallel) + differential epc901");
+        s.apply_component(
+            &m,
+            "adc",
+            "LTC2225 (12-bit 10 MS/s parallel) + differential epc901",
+        );
         s.add_link(&m, "dcoll.f", "coll.f");
         let text = save(&m, &s).unwrap();
         let mut fresh = State::new(&m);
         assert!(load(&m, &mut fresh, &text).unwrap() > 50);
-        assert_eq!(fresh.values.v.iter().zip(&s.values.v).filter(|(a, b)| (*a - *b).abs() > 1e-12 * b.abs().max(1.0)).count(), 0);
+        assert_eq!(
+            fresh
+                .values
+                .v
+                .iter()
+                .zip(&s.values.v)
+                .filter(|(a, b)| (*a - *b).abs() > 1e-12 * b.abs().max(1.0))
+                .count(),
+            0
+        );
         assert_eq!(fresh.locked, s.locked);
         assert_eq!(fresh.links, s.links);
     }

@@ -1,6 +1,6 @@
 name = "Newport SFPX040 (N-SF11 PCX, uncoated)"
 kind = "obj"
-note = "12.7 mm dia, EFL 12.7 mm at 587.6 nm, clear aperture 11.7 mm. Centre thickness is a guess."
+note = "Newport/MKS listing: Ø12.7 mm, EFL 12.7 mm at 587.6 nm (+-1 %), R = 9.97 mm, centre thickness 4 mm, edge 1.72 mm, BFL 10.46 mm, clear aperture 11.7 mm. Uncoated."
 [params]
 f = 0.0127
 lamf = 587.6e-9

@@ -110,8 +110,8 @@ Per λ, on the shared wavelength grid.
 8. **Peak-concentrated signal.** The sample only returns a narrow band near its in-focus wavelength, so the photons that matter are `P_spectral · Δλ_peak`, not the full LED output. This is the main reason chromatic confocal is light-limited.
 
 **Étendue is the controlling number.** A pinhole matched to about 1 Airy unit has `G = A·π·NA² = (π²/4)(1.22 λ)² ≈ 3.7 λ² ≈ 1.1e-12 m²·sr` at 550 nm, *independent of the pinhole size and NA*. A larger pinhole is not more confocal, it is just less confocal, so it is not a way to buy more light. Order-of-magnitude chain (Python scratch calculation, every factor rough and `[verify]`):
-- LED radiance `L ≈ 1.4e5 W/(m²·sr)` (radiant flux ≈ 0.54 W from 122 lm with a ≈ 0.33 luminous-efficacy factor, over 1.21 mm²).
-- Spectral power into a matched pinhole `≈ 0.4 nW/nm` (including `η_prox = 0.95`).
+- LED radiance `L ≈ 1.1e5 W/(m²·sr)` (radiant flux ≈ 0.41 W from 122 lm with the spectrum-weighted `⟨V⟩ = 0.43`, a luminous efficacy of radiation of 295 lm/W, over 1.21 mm²).
+- Spectral power into a matched pinhole `≈ 0.4 nW/nm` (including `η_prox = 0.95`; 0.10 µW over the whole band).
 - After the beam splitter (25 %), optics (≈ 0.8), second-pinhole loss (≈ 0.5) and spectrometer (≈ 0.6): about 2.4e-11 W/nm at the detector side.
 - Per 0.195 nm pixel that is about **1e4 e⁻/pixel per ms for a specular sample** (shot-noise SNR ≈ 100, far below the 400 ke⁻ full well) and about **30 e⁻/pixel per ms for a diffuse sample** (the `NA²` collection fraction times a reflectivity of 0.3 at NA 0.1), which is **below the ≈ 140 e⁻ read noise**.
 - This per-pixel number does not depend on NA, because the peak simply gets wider in pixels as NA drops.
@@ -376,7 +376,7 @@ All earlier questions are answered and folded in above (LED proximity with `η_p
 
 ### Headline numbers from the default scenario (SFPX040 stopped to NA 0.1, 25 µm pinholes, 1 kHz, no ADC)
 
-Pinholes 0.95 AU; Airy unit 6.7 µm; **confocal lateral FWHM 4.8 µm** (both finite pinholes blur the PSF, so a matched 1 AU pair is nowhere near the 2 µm point-pinhole ideal; about 0.87 λ/NA); mirror axial FWHM 65 µm (ideal 49), diffuse plane 104 µm; axial range 0.67 mm; peak width 21.6 nm; power into pinhole 0.11 µW. The read clock defaults to the slowest clock that fits the period (`1.1 × N_clk × rate` ≈ 1.13 MHz at 1 kHz, about 140 e⁻ read noise; a fixed 5 MHz clock would cost about 300 e⁻), giving peak-pixel SNR about 19, Cramér–Rao height precision about 230 nm, and a centroid estimator scatter of about 300 nm. The app flags the host link (needs 2 MB/s, carries 1 MB/s). A pinhole-diameter sweep shows the lateral-resolution versus SNR trade directly: 12 µm pinholes give 2.4 µm lateral FWHM but SNR 3; 50 µm gives 11 µm and SNR 77.
+Pinholes 0.95 AU; NA 0.101 (`D / 2 f(λ)` at 550 nm); Airy unit 6.7 µm; **confocal lateral FWHM 4.8 µm** (both finite pinholes blur the PSF, so a matched 1 AU pair is nowhere near the 2 µm point-pinhole ideal; about 0.87 λ/NA); mirror axial FWHM 65 µm (ideal 49), diffuse plane 104 µm; axial range 0.67 mm; peak width 21.6 nm; power into pinhole 0.11 µW. The read clock defaults to the slowest clock that fits the period (`1.1 × N_clk × rate` ≈ 1.13 MHz at 1 kHz, about 140 e⁻ read noise; a fixed 5 MHz clock would cost about 300 e⁻), giving peak-pixel SNR about 19, Cramér–Rao height precision about 230 nm, and a centroid estimator scatter of about 300 nm. The app flags the host link (needs 2 MB/s, carries 1 MB/s). A pinhole-diameter sweep shows the lateral-resolution versus SNR trade directly: 12 µm pinholes give 2.4 µm lateral FWHM but SNR 3; 50 µm gives 11 µm and SNR 77.
 
 ### Deviations from the plan (every place the code simplifies it)
 
@@ -465,10 +465,64 @@ Each phase ends with tests, clippy and a review.
 
 **Performance.** The disk-integral tables are cached on a pinhole-radius grid (step 0.25, built lazily and in parallel at start-up) and interpolated, so changing a pinhole radius no longer rebuilds anything and outputs are smooth. Measured: a slider drag step costs 0.18 ms on the UI thread (settle plus the lock flags); a full evaluation is about 5 ms (about 9 ms with the Monte Carlo outputs) and runs on a worker thread, so the UI shows the previous numbers (greyed only after 150 ms) until the new ones arrive. Sweeps and optimisation also run off the UI thread. Timing budgets are asserted in tests.
 
-**Engine.** There are no per-parameter rules or gear menus any more. State is a plain value vector plus component locks, active constraints and custom links. Formulas are three kinds: always-on definitions (NA = D/2f, magnification, pinhole size in Airy units; each draggable in every direction through a per-formula give-way order), optional design constraints (identical pinholes, read clock from rate, exposure from rate, wavefront error from singlet aberration, dispersion from grating) and read-only outputs computed from a snapshot of the values. Only a component locks a slider; dragging a slider that a constraint sets turns that constraint off and says so in the status line. A part that a component fixes makes any slider that would have to move it unmovable, with the reason in its tooltip.
+**Engine.** There are no per-parameter rules or gear menus any more. State is a plain value vector plus component locks, active constraints and custom links. Formulas are three kinds: always-on definitions (NA = D/2f, magnification, pinhole size in Airy units, spectrometer dispersion from the grating and camera focal length; each draggable in every direction through a per-formula give-way order), optional design constraints (identical pinholes, read clock from rate, exposure from rate, wavefront error from singlet aberration) and read-only outputs computed from a snapshot of the values. Only a component locks a slider; dragging a slider that a constraint sets turns that constraint off and says so in the status line. A part that a component fixes makes any slider that would have to move it unmovable, with the reason in its tooltip.
 
 **Constraints pane.** All formulas in one view with checkbox, Unicode equation, description, give-way order, references, conflict/override status, and custom A = B links.
 
-**Optimise pane.** Objective: fixed acquisition rate; cost = Σ weight · value / limit for lateral FWHM and height precision, plus a steep quadratic penalty past each limit, plus optional hard constraints (Strehl ≥ 0.8, no saturation, pinholes inside the tables). Continuous mode: choose design variables and bounds (unit cube, log-scaled where the slider is), Nelder-Mead, gradient descent (parallel central differences, projected backtracking line search) or gradient descent with Nelder-Mead fallback; runs on a worker with progress, Stop and Apply; tied variables are rejected before the run with the constraint named. Discrete mode: slots for each part kind (same part on both sides optional), combination count shown, parallel ranking, one-click apply, and a snap of the continuous optimum to the three nearest catalog parts per slot. On the default design, gradient descent with fallback improves the cost from 1.71 to 1.38 in 1.4 s (lateral 4.75 → 3.97 µm, height 227 → 177 nm) and stops at the Strehl = 0.8 hard limit; without that constraint the optimiser would push NA up because aberration only scales the signal.
+**Optimise pane.** Objective: fixed acquisition rate; cost = Σ weight · value / limit for lateral FWHM and height precision, plus a steep quadratic penalty past each limit, plus optional hard constraints (Strehl ≥ 0.8, no saturation, pinholes inside the tables). Continuous mode: choose design variables and bounds (unit cube, log-scaled where the slider is), Nelder-Mead, gradient descent (parallel central differences, projected backtracking line search) or gradient descent with Nelder-Mead fallback; runs on a worker with progress, Stop and Apply; tied variables are rejected before the run with the constraint named. Discrete mode: slots for each part kind (same part on both sides optional), combination count shown, parallel ranking, one-click apply, and a snap of the continuous optimum to the three nearest catalog parts per slot. On the default design (after the review fixes of §8), gradient descent with fallback improves the cost from 1.82 to 1.69 in 1.8 s (215 evaluations; height noise 259 → 214 nm, lateral FWHM 4.77 → 4.91 µm, Strehl 0.98 → 0.92) by stopping the objective down slightly and lengthening the collimators; the discrete search over 180 combinations finds a better design (cost 1.61: the AC254-050-A collimators and the AR-coated SFPX040.AR14), because the coating's extra transmission is worth more than any geometry change. Aberration only scales the signal (it does not widen the PSF), so the hard Strehl limit is kept to stop an optimiser from pushing NA up.
 
 **Not done.** Typst formula rendering (Unicode shown), snapshot comparison of optimisation runs, 2-D sweeps. "Lateral precision" is mapped to the confocal lateral FWHM.
+
+---
+
+## 8. Verification and review pass
+
+### 8.1 `[verify]` items resolved
+
+| Item | Result | Source |
+|---|---|---|
+| Confocal lateral FWHM, point pinholes | 0.37 λ/NA confirmed; the model reproduces 0.369 | arXiv 1404.2408 (thesis quoting Wilson) |
+| Confocal axial FWHM, point object (both passes on axis, sinc⁴(u/4)) | 0.64 λ/(n − √(n² − NA²)), paraxially 1.28 λ/NA²; the model's point-object response gives 1.27 (2 % check). The model's incoherent diffuse plane (a different quantity, ∫|U|⁴) is slightly wider at 1.36 λ/NA²; there is no literature figure for it, so it is checked only against the point object (wider, within 15 %) | same |
+| Plane-mirror axial response | `sinc²(u/2)`, FWHM 0.443 λ/(1 − cos α) = 0.886 λ/NA² paraxially; the normalised coordinate `u = 4 k z sin²(α/2)` matches Kowalczyk et al.; reproduced exactly | Opt. Appl. 28 (2) 127; Utah `confocal_intro.pdf` |
+| Airy / encircled energy | 0.514 λ/NA wide-field FWHM, 0.838 inside the first zero; both reproduced | Born & Wolf |
+| Newport SFPX040 | R = 9.97 mm, centre thickness 4 mm, edge 1.72 mm, BFL 10.46 mm, clear aperture 11.7 mm: the ray trace reproduces the 10.46 mm back focal length, so the earlier guessed 4 mm centre thickness was right | Newport/MKS listing |
+| ADS8860 | tCONV 500–710 ns, tACQ 290 ns, SCLK up to 66.6 MHz; 16 bits at 66.6 MHz fit in the 290 ns window, so 1 MS/s SPI is feasible. The component now uses 710 ns and 66.6 MHz (it no longer raises the SPI warning at 1 MS/s) | TI SBAS569B |
+| LTC2225 | 12-bit, 10 MS/s, 71.3 dB SNR, 1–2 Vpp differential or single-ended, 3 V, parallel CMOS | Analog Devices listing |
+| AC254-050-A | Ø25.4 mm, N-BAF10/N-SF10 doublet, 400–700 nm AR, EFL 50.2 mm (±1 %) | distributor listings |
+| epc901 numbers | read noise 700 µV (diff) / 500 µV (SE) at 1 MHz, SNR table → 1.9 mV at 10 MHz and 1.8 mV at 54 MHz, full well 400 ke⁻ ↔ 2 V, 515 clocks at 54 MHz = 9.54 µs; all reproduced | datasheet |
+| LED | Φ_e / (I · V_F) = 0.42 against the datasheet's 40 % electrical efficiency; luminous efficacy of radiation 295 lm/W | datasheet |
+| Digitised curves | the LED (4000 K) and QE curves were re-traced by pixel analysis of the datasheet figures (the earlier eyeballed LED curve overestimated the red tail by up to 40 %); the Verify tab overlays the traced points on the curves | datasheet figures |
+| Not confirmable online | Thorlabs P25D/P50D thickness and tolerance, BS010 and GT25-03 efficiency, Edmund 47-662 and the grating stock number; still marked `[verify]` in the component notes | |
+
+### 8.2 Errors found and fixed in the review
+
+- **Strehl applied once, should be twice:** illumination and detection each pass the aberrated PSF, so the confocal peak scales as S² (the Strehl output and flag still report the single-pass value).
+- **Pinhole-2 projection:** the image of a circular pinhole projected on the dispersion axis has variance (w/2)²/4 = w²/16, not w²/12 (that is for a slit).
+- **Grating illuminated width:** was a free parameter; it is now `min(grating width, 2 f_col NA_pin2)` from the beam that pinhole 2 actually produces.
+- **Ghost light:** was multiplied by the objective, beam-splitter and de-collimator transmissions twice; it is now a fraction of the power entering pinhole 1 that reaches the spectrometer unfocused.
+- **Singlet radius:** `R = f (n_d − 1)` now uses the index at the design wavelength, not at the working wavelength.
+- **Read noise at 1 MHz** now uses the datasheet's 700 µV rather than the value derived from the SNR table.
+- **Valid spectral range:** pixels outside 400–800 nm (the range of the LED and QE data) are dark instead of being evaluated, which removed the NaNs at large dispersion, and a warning says when the band leaves that range.
+- **Dispersion is now a definition** (grating equation plus camera focal length) instead of a warning.
+
+### 8.3 Parameter audit
+
+Removed: the LED flux-current exponent (now a constant 0.95), the free "illuminated grating width". Added: per-part "Real / Ideal" switches for collimators, beam splitter, objective and spectrometer (ideal = no loss, stray light, chromatic drift, wavefront error or grating-efficiency shape; their imperfection rows are hidden), and the ADC rows are hidden while it is off. Kept although redundant: pinhole size and Airy units, NA / stop / focal length, dispersion / camera focal length, centroid and Cramér–Rao precision.
+
+### 8.4 Verify tab
+
+Self-checks (18 recomputed known results with tolerance and source link), the traced LED spectrum with V(λ) and numbers, the QE curve and the epc901 noise and full-well tables, glass index and focal length, the pixel-to-wavelength map with grating efficiency and the four resolution terms, and a stage-by-stage photon budget that can be multiplied out by hand.
+
+### 8.5 Independent review (a second reader went through physics, model, solver and data)
+
+It found no sign, factor-of-2 or unit error in the photon-budget chain, the vergence algebra, the confocal tables, the Fisher calculation, the Sellmeier data, the ray trace, the grating equation or the detector tables. Defects found and fixed:
+
+- **Pinhole size in Airy units varies across the band** (`v_p ∝ 1/λ`, about 4.4 at 450 nm and 3.1 at 650 nm): the pinhole-2 pass fraction and the axial response shape are now interpolated between five wavelength nodes instead of frozen at the reference wavelength.
+- **Binning** now averages `b` physical pixels (512 or 256 output pixels, shot noise divided by `b`, read noise unchanged), instead of only changing the clock count.
+- **PRNU** added as a residual gain non-uniformity parameter (default 0.5 % after flat-fielding; datasheet 2 % typical) in the noise variance.
+- **Link requirement** is now stored in bytes per second; the Host-link panel used to show it a million times too small.
+- **Strehl** is applied as S⁴ for the specular return (the same pupil points are traversed twice, so the wavefront error doubles) and S² for the diffuse return.
+- **Objective focal length consistency:** NA, magnification and pinhole size in Airy units now all use the focal length at the working wavelength (`NA = D / 2 f(λ)`), not a mixture of the design-wavelength and working-wavelength values.
+- **Smaller:** flux-current exponent 0.82 (fits the datasheet curve at 100 mA and 1 A; 0.95 was 15–20 % off); exposure overhead is the flush time only (the sensor is still sensitive during the shift); the pixel resolution term includes the datasheet's 20 % charge crosstalk; diffraction limit uses the illuminated length `W / cos α`; blur no longer attenuates the band edges; the out-of-focus tail of the axial response uses a smoothed envelope instead of one oscillating grid value; "Electrons in the peak" is renamed (it sums the whole spectrum); new warnings for an ADC range that clips or wastes bits, a conversion time longer than the sample period, and single-ended noise used above 1 MHz.
+
+Known simplifications that remain (documented, not fixed): the diffuse-plane response uses one common defocus for illumination and detection (exact only for a mirror; negligible for the default achromats); the Cramér–Rao bound assumes a known peak shape, amplitude and background (the Monte Carlo centroid is the realistic number); the epc901 frame-store dark current, readout CDS time and the ghost image above 20 MHz are not modelled; the dependent value of a constraint can leave its slider range without being clamped.

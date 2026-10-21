@@ -1,6 +1,6 @@
 name = "LTC2225 (12-bit 10 MS/s parallel) + differential epc901"
 kind = "adc"
-note = "3 V, 71.3 dB SNR, 1-2 Vpp differential input, parallel bus read by PIO. Verify datasheet."
+note = "Analog Devices listing: 12-bit, 10 MS/s, 71.3 dB SNR, 1-2 Vpp differential or single-ended input, 3 V, parallel CMOS output. Conversion is pipelined, so no t_conv limit."
 [params]
 on = 1
 bits = 12

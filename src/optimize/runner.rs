@@ -1,5 +1,11 @@
-use super::{methods::{self, Method}, problem::Problem};
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex};
+use super::{
+    methods::{self, Method},
+    problem::Problem,
+};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 
 #[derive(Default, Clone)]
 pub struct Progress {
@@ -22,8 +28,16 @@ impl Run {
     }
 }
 
-pub fn spawn(problem: Problem, method: Method, budget: usize, repaint: impl Fn() + Send + 'static) -> Run {
-    let progress = Arc::new(Mutex::new(Progress { cost: f64::NAN, ..Default::default() }));
+pub fn spawn(
+    problem: Problem,
+    method: Method,
+    budget: usize,
+    repaint: impl Fn() + Send + 'static,
+) -> Run {
+    let progress = Arc::new(Mutex::new(Progress {
+        cost: f64::NAN,
+        ..Default::default()
+    }));
     let stop = Arc::new(AtomicBool::new(false));
     let (p, s) = (progress.clone(), stop.clone());
     std::thread::spawn(move || {
@@ -41,7 +55,13 @@ pub fn spawn(problem: Problem, method: Method, budget: usize, repaint: impl Fn()
         if let Ok(mut g) = p.lock() {
             g.history.push(trace.f);
             (g.best, g.cost, g.evals, g.done) = (trace.x, trace.f, trace.evals, true);
-            g.message = if s.load(Ordering::Relaxed) { "Stopped".into() } else if trace.stalled { "Stalled".into() } else { "Converged".into() };
+            g.message = if s.load(Ordering::Relaxed) {
+                "Stopped".into()
+            } else if trace.stalled {
+                "Stalled".into()
+            } else {
+                "Converged".into()
+            };
         }
         repaint();
     });

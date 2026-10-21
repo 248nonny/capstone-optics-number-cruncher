@@ -1,5 +1,7 @@
 pub fn crossing(mut v: impl Iterator<Item = f64>) -> f64 {
-    let Some(peak) = v.next() else { return f64::NAN };
+    let Some(peak) = v.next() else {
+        return f64::NAN;
+    };
     let half = peak / 2.0;
     let mut prev = peak;
     for (i, y) in v.enumerate() {
@@ -12,7 +14,9 @@ pub fn crossing(mut v: impl Iterator<Item = f64>) -> f64 {
 }
 
 pub fn width(v: &[f64], peak: usize) -> f64 {
-    crossing(v[peak..].iter().copied()) + crossing(v[..=peak].iter().rev().copied())
+    let side = |c: f64, len: usize| if c.is_nan() { len as f64 } else { c };
+    side(crossing(v[peak..].iter().copied()), v.len() - peak)
+        + side(crossing(v[..=peak].iter().rev().copied()), peak + 1)
 }
 
 #[cfg(test)]

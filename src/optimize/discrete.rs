@@ -23,24 +23,41 @@ const EXCLUDED_KINDS: [&str; 2] = ["sample", "adc"];
 
 pub fn slots(m: &Model, train: &[Instance], same_both_sides: bool) -> Vec<Slot> {
     let mut out: Vec<Slot> = vec![];
-    for inst in train.iter().filter(|i| m.lib.of_kind(i.kind).next().is_some()) {
-        match out.iter_mut().find(|s| s.kind == inst.kind && same_both_sides) {
+    for inst in train
+        .iter()
+        .filter(|i| m.lib.of_kind(i.kind).next().is_some())
+    {
+        match out
+            .iter_mut()
+            .find(|s| s.kind == inst.kind && same_both_sides)
+        {
             Some(slot) => {
                 slot.instances.push(inst.name);
                 slot.label = format!("{} + {}", slot.label, inst.title);
             }
-            None => out.push(Slot { label: inst.title.into(), kind: inst.kind, instances: vec![inst.name], include: !EXCLUDED_KINDS.contains(&inst.kind) && inst.kind != "bs" }),
+            None => out.push(Slot {
+                label: inst.title.into(),
+                kind: inst.kind,
+                instances: vec![inst.name],
+                include: !EXCLUDED_KINDS.contains(&inst.kind) && inst.kind != "bs",
+            }),
         }
     }
     out
 }
 
 pub fn options(m: &Model, slot: &Slot) -> Vec<Option<String>> {
-    std::iter::once(None).chain(m.lib.of_kind(slot.kind).map(|c| Some(c.name.clone()))).collect()
+    std::iter::once(None)
+        .chain(m.lib.of_kind(slot.kind).map(|c| Some(c.name.clone())))
+        .collect()
 }
 
 pub fn count(m: &Model, slots: &[Slot]) -> usize {
-    slots.iter().filter(|s| s.include).map(|s| options(m, s).len()).product()
+    slots
+        .iter()
+        .filter(|s| s.include)
+        .map(|s| options(m, s).len())
+        .product()
 }
 
 fn product(slots: &[Slot], choices: &[Vec<Option<String>>]) -> Vec<Parts> {
@@ -68,10 +85,17 @@ pub fn all_combos(m: &Model, slots: &[Slot]) -> Vec<Parts> {
 }
 
 pub fn apply(m: &Model, s: &mut State, parts: &Parts) {
-    parts.iter().for_each(|(inst, name)| s.apply_component(m, inst, name));
+    parts
+        .iter()
+        .for_each(|(inst, name)| s.apply_component(m, inst, name));
 }
 
-pub fn evaluate(m: &Arc<Model>, base: &State, objective: &Objective, combos: Vec<Parts>) -> Vec<Row> {
+pub fn evaluate(
+    m: &Arc<Model>,
+    base: &State,
+    objective: &Objective,
+    combos: Vec<Parts>,
+) -> Vec<Row> {
     let threads = thread::available_parallelism().map_or(2, |n| n.get());
     let chunk = combos.len().div_ceil(threads).max(1);
     let mut rows: Vec<Row> = thread::scope(|s| {
@@ -83,20 +107,33 @@ pub fn evaluate(m: &Arc<Model>, base: &State, objective: &Objective, combos: Vec
                         .map(|parts| {
                             let mut t = base.clone();
                             apply(m, &mut t, parts);
-                            let k = metrics(&Eval::new(&t.values));
-                            Row { parts: parts.clone(), cost: objective.cost(&k), metrics: Some(k) }
+                            let k = metrics(&Eval::new(&t.effective(m)));
+                            Row {
+                                parts: parts.clone(),
+                                cost: objective.cost(&k),
+                                metrics: Some(k),
+                            }
                         })
                         .collect::<Vec<_>>()
                 })
             })
             .collect();
-        handles.into_iter().flat_map(|h| h.join().unwrap_or_default()).collect()
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap_or_default())
+            .collect()
     });
     rows.sort_by(|a, b| a.cost.total_cmp(&b.cost));
     rows
 }
 
-pub fn nearest(m: &Model, slot: &Slot, vars: &[DesignVar], optimum: &[f64], keep: usize) -> Vec<Option<String>> {
+pub fn nearest(
+    m: &Model,
+    slot: &Slot,
+    vars: &[DesignVar],
+    optimum: &[f64],
+    keep: usize,
+) -> Vec<Option<String>> {
     let mut scored: Vec<(f64, String)> = m
         .lib
         .of_kind(slot.kind)
@@ -106,7 +143,11 @@ pub fn nearest(m: &Model, slot: &Slot, vars: &[DesignVar], optimum: &[f64], keep
                 .iter()
                 .flat_map(|inst| {
                     c.params.iter().filter_map(move |(k, &x)| {
-                        let id = if k.contains('.') { k.clone() } else { format!("{inst}.{k}") };
+                        let id = if k.contains('.') {
+                            k.clone()
+                        } else {
+                            format!("{inst}.{k}")
+                        };
                         let i = m.index.get(&id)?;
                         let (var, u) = vars.iter().zip(optimum).find(|(v, _)| v.idx == *i)?;
                         Some((var.unit(x) - u).powi(2))
@@ -117,15 +158,31 @@ pub fn nearest(m: &Model, slot: &Slot, vars: &[DesignVar], optimum: &[f64], keep
         })
         .collect();
     scored.sort_by(|a, b| a.0.total_cmp(&b.0));
-    scored.into_iter().take(keep).map(|(_, n)| Some(n)).collect()
+    scored
+        .into_iter()
+        .take(keep)
+        .map(|(_, n)| Some(n))
+        .collect()
 }
 
-pub fn snap(m: &Arc<Model>, base: &State, objective: &Objective, slots: &[Slot], vars: &[DesignVar], optimum: &[f64], keep: usize) -> Vec<Row> {
+pub fn snap(
+    m: &Arc<Model>,
+    base: &State,
+    objective: &Objective,
+    slots: &[Slot],
+    vars: &[DesignVar],
+    optimum: &[f64],
+    keep: usize,
+) -> Vec<Row> {
     let choices: Vec<_> = slots
         .iter()
         .map(|s| {
             let near = nearest(m, s, vars, optimum, keep);
-            if near.is_empty() { vec![None] } else { near }
+            if near.is_empty() {
+                vec![None]
+            } else {
+                near
+            }
         })
         .collect();
     evaluate(m, base, objective, product(slots, &choices))

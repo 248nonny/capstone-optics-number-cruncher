@@ -14,10 +14,20 @@ pub struct Latest<T> {
 
 impl<T: Send + 'static> Latest<T> {
     pub fn new() -> Self {
-        Self { inner: Arc::new(Mutex::new(Inner { busy: false, pending: None, result: None })) }
+        Self {
+            inner: Arc::new(Mutex::new(Inner {
+                busy: false,
+                pending: None,
+                result: None,
+            })),
+        }
     }
 
-    pub fn submit(&self, job: impl FnOnce() -> T + Send + 'static, done: impl Fn() + Send + 'static) {
+    pub fn submit(
+        &self,
+        job: impl FnOnce() -> T + Send + 'static,
+        done: impl Fn() + Send + 'static,
+    ) {
         let mut g = self.inner.lock().unwrap();
         g.pending = Some(Box::new(job));
         if g.busy {

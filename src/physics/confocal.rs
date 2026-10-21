@@ -1,5 +1,8 @@
 use super::{halfmax::crossing, special::j0};
-use std::{f64::consts::PI, sync::{Arc, OnceLock}};
+use std::{
+    f64::consts::PI,
+    sync::{Arc, OnceLock},
+};
 
 const V_STEP: f64 = 0.2;
 const V_STEP_RHO: f64 = V_STEP;
@@ -12,14 +15,27 @@ const TOTAL: f64 = 4.0 * PI;
 pub struct Table(Vec<f64>);
 
 fn build() -> Table {
-    let rho: Vec<f64> = (0..PUPIL_N).map(|k| (k as f64 + 0.5) / PUPIL_N as f64).collect();
-    let phase: Vec<Vec<(f64, f64)>> =
-        (0..U_N).map(|j| rho.iter().map(|r| (j as f64 * U_STEP * r * r / 2.0).sin_cos()).collect()).collect();
+    let rho: Vec<f64> = (0..PUPIL_N)
+        .map(|k| (k as f64 + 0.5) / PUPIL_N as f64)
+        .collect();
+    let phase: Vec<Vec<(f64, f64)>> = (0..U_N)
+        .map(|j| {
+            rho.iter()
+                .map(|r| (j as f64 * U_STEP * r * r / 2.0).sin_cos())
+                .collect()
+        })
+        .collect();
     let mut t = vec![0.0; V_N * U_N];
     for i in 0..V_N {
-        let bes: Vec<f64> = rho.iter().map(|r| j0(i as f64 * V_STEP * r) * r / PUPIL_N as f64).collect();
+        let bes: Vec<f64> = rho
+            .iter()
+            .map(|r| j0(i as f64 * V_STEP * r) * r / PUPIL_N as f64)
+            .collect();
         for j in 0..U_N {
-            let (re, im) = phase[j].iter().zip(&bes).fold((0.0, 0.0), |(a, b), (&(s, c), &w)| (a + c * w, b + s * w));
+            let (re, im) = phase[j]
+                .iter()
+                .zip(&bes)
+                .fold((0.0, 0.0), |(a, b), (&(s, c), &w)| (a + c * w, b + s * w));
             t[i * U_N + j] = 4.0 * (re * re + im * im);
         }
     }
@@ -37,14 +53,18 @@ impl Table {
         if fv >= (V_N - 1) as f64 {
             return 0.0;
         }
-        let tail = if fu >= (U_N - 1) as f64 { ((U_N - 1) as f64 / fu).powi(2) } else { 1.0 };
+        let tail = if fu >= (U_N - 1) as f64 {
+            ((U_N - 1) as f64 / fu).powi(2)
+        } else {
+            1.0
+        };
         let fu = fu.min((U_N - 1) as f64 - 1e-9);
         let (i, j) = (fv as usize, fu as usize);
         let (a, b) = (fv - i as f64, fu - j as f64);
         let g = |i: usize, j: usize| self.0[i * U_N + j];
-        tail * ((1.0 - a) * ((1.0 - b) * g(i, j) + b * g(i, j + 1)) + a * ((1.0 - b) * g(i + 1, j) + b * g(i + 1, j + 1)))
+        tail * ((1.0 - a) * ((1.0 - b) * g(i, j) + b * g(i, j + 1))
+            + a * ((1.0 - b) * g(i + 1, j) + b * g(i + 1, j + 1)))
     }
-
 }
 
 const VP_STEP: f64 = 0.25;
@@ -59,7 +79,14 @@ fn build_disk(vp: f64) -> DiskTable {
     }
     const NP: usize = 16;
     let nr = (vp / 0.6).ceil().clamp(10.0, 60.0) as usize;
-    let rings: Vec<(f64, f64)> = (0..nr).map(|a| ((a as f64 + 0.5) * vp / nr as f64, (a as f64 + 0.5) / nr as f64)).collect();
+    let rings: Vec<(f64, f64)> = (0..nr)
+        .map(|a| {
+            (
+                (a as f64 + 0.5) * vp / nr as f64,
+                (a as f64 + 0.5) / nr as f64,
+            )
+        })
+        .collect();
     let mut out = vec![0.0; V_N * U_N];
     for i in 0..V_N {
         let rho = i as f64 * V_STEP_RHO;
@@ -69,7 +96,12 @@ fn build_disk(vp: f64) -> DiskTable {
             for &(r, w) in &rings {
                 for b in 0..NP {
                     let phi = PI * (b as f64 + 0.5) / NP as f64;
-                    sum += w * t.at((rho * rho + r * r - 2.0 * rho * r * phi.cos()).max(0.0).sqrt(), u);
+                    sum += w * t.at(
+                        (rho * rho + r * r - 2.0 * rho * r * phi.cos())
+                            .max(0.0)
+                            .sqrt(),
+                        u,
+                    );
                 }
             }
             out[i * U_N + j] = 2.0 * sum / (nr * NP) as f64;
@@ -84,7 +116,9 @@ fn slots() -> &'static Vec<OnceLock<Arc<DiskTable>>> {
 }
 
 fn disk_table(k: usize) -> Arc<DiskTable> {
-    slots()[k].get_or_init(|| Arc::new(build_disk(k as f64 * VP_STEP))).clone()
+    slots()[k]
+        .get_or_init(|| Arc::new(build_disk(k as f64 * VP_STEP)))
+        .clone()
 }
 
 pub fn warm() {
@@ -111,18 +145,27 @@ fn bilinear(t: &[f64], rho: f64, u: f64) -> f64 {
     if fv >= (V_N - 1) as f64 {
         return 0.0;
     }
-    let tail = if fu >= (U_N - 1) as f64 { ((U_N - 1) as f64 / fu).powi(2) } else { 1.0 };
+    let tail = if fu >= (U_N - 1) as f64 {
+        ((U_N - 1) as f64 / fu).powi(2)
+    } else {
+        1.0
+    };
     let fu = fu.min((U_N - 1) as f64 - 1e-9);
     let (i, j) = (fv as usize, fu as usize);
     let (a, b) = (fv - i as f64, fu - j as f64);
     let g = |i: usize, j: usize| t[i * U_N + j];
-    tail * ((1.0 - a) * ((1.0 - b) * g(i, j) + b * g(i, j + 1)) + a * ((1.0 - b) * g(i + 1, j) + b * g(i + 1, j + 1)))
+    tail * ((1.0 - a) * ((1.0 - b) * g(i, j) + b * g(i, j + 1))
+        + a * ((1.0 - b) * g(i + 1, j) + b * g(i + 1, j + 1)))
 }
 
 pub fn disk(vp: f64) -> Disk {
     let x = (vp / VP_STEP).clamp(0.0, (VP_N - 1) as f64 - 1e-9);
     let k = x as usize;
-    Disk { lo: disk_table(k), hi: disk_table(k + 1), w: x - k as f64 }
+    Disk {
+        lo: disk_table(k),
+        hi: disk_table(k + 1),
+        w: x - k as f64,
+    }
 }
 
 impl Disk {
@@ -156,16 +199,31 @@ pub fn axial(vp1: f64, vp2: f64) -> Axial {
     let reach = vp1 + vp2;
     let n = (reach / 0.1).ceil().max(8.0) as usize;
     let h = reach / n as f64;
-    let kernel: Vec<(f64, f64)> = (0..n).map(|k| ((k as f64 + 0.5) * h, 0.0)).map(|(r, _)| (r, overlap(vp1, vp2, r) * 2.0 * PI * r * h)).collect();
-    let mirror = (0..U_N).map(|j| kernel.iter().map(|&(r, w)| w * t.at(r, j as f64 * U_STEP)).sum::<f64>() / (a1 * TOTAL)).collect();
+    let kernel: Vec<(f64, f64)> = (0..n)
+        .map(|k| ((k as f64 + 0.5) * h, 0.0))
+        .map(|(r, _)| (r, overlap(vp1, vp2, r) * 2.0 * PI * r * h))
+        .collect();
+    let mirror = (0..U_N)
+        .map(|j| {
+            kernel
+                .iter()
+                .map(|&(r, w)| w * t.at(r, j as f64 * U_STEP))
+                .sum::<f64>()
+                / (a1 * TOTAL)
+        })
+        .collect();
     let (d1, d2) = (disk(vp1), disk(vp2));
     let plane = (0..U_N)
         .map(|j| {
             let u = j as f64 * U_STEP;
-            (0..V_N - 1).map(|i| {
-                let r = (i as f64 + 0.5) * V_STEP;
-                d1.avg(r, u) * d2.avg(r, u) * 2.0 * PI * r * V_STEP
-            }).sum::<f64>() * a2 / (TOTAL * TOTAL)
+            (0..V_N - 1)
+                .map(|i| {
+                    let r = (i as f64 + 0.5) * V_STEP;
+                    d1.avg(r, u) * d2.avg(r, u) * 2.0 * PI * r * V_STEP
+                })
+                .sum::<f64>()
+                * a2
+                / (TOTAL * TOTAL)
         })
         .collect();
     Axial { mirror, plane }
@@ -174,9 +232,13 @@ pub fn axial(vp1: f64, vp2: f64) -> Axial {
 impl Axial {
     fn interp(curve: &[f64], u: f64) -> f64 {
         let f = u.abs() / U_STEP;
-        let last = (curve.len() - 1) as f64;
-        if f >= last {
-            return curve[curve.len() - 1] * (last / f).powi(2);
+        let last = curve.len() - 1;
+        if f >= last as f64 {
+            let tail: f64 = (last - 9..=last)
+                .map(|i| curve[i] * (i * i) as f64)
+                .sum::<f64>()
+                / 10.0;
+            return tail / (f * f);
         }
         let (i, b) = (f as usize, f.fract());
         curve[i] * (1.0 - b) + curve[i + 1] * b
@@ -203,10 +265,54 @@ impl Axial {
     }
 }
 
+pub struct Bank {
+    lams: Vec<f64>,
+    axials: Vec<Axial>,
+}
+
+const BANK_NODES: usize = 5;
+
+impl Bank {
+    pub fn new(vp0: [f64; 2], lam0: f64, lo: f64, hi: f64) -> Self {
+        let nodes = if hi > lo { BANK_NODES } else { 1 };
+        let lams: Vec<f64> = (0..nodes)
+            .map(|k| lo + (hi - lo) * k as f64 / (nodes - 1).max(1) as f64)
+            .collect();
+        let axials = lams
+            .iter()
+            .map(|&l| axial(vp0[0] * lam0 / l, vp0[1] * lam0 / l))
+            .collect();
+        Self { lams, axials }
+    }
+
+    fn blend(&self, lam: f64, f: impl Fn(&Axial) -> f64) -> f64 {
+        let k = self
+            .lams
+            .partition_point(|&l| l < lam)
+            .clamp(1, self.lams.len().max(2) - 1);
+        if self.lams.len() == 1 {
+            return f(&self.axials[0]);
+        }
+        let (l0, l1) = (self.lams[k - 1], self.lams[k]);
+        let w = ((lam - l0) / (l1 - l0)).clamp(0.0, 1.0);
+        (1.0 - w) * f(&self.axials[k - 1]) + w * f(&self.axials[k])
+    }
+
+    pub fn mirror_at(&self, lam: f64, u: f64) -> f64 {
+        self.blend(lam, |a| a.mirror_at(u))
+    }
+
+    pub fn plane_at(&self, lam: f64, u: f64) -> f64 {
+        self.blend(lam, |a| a.plane_at(u))
+    }
+}
+
 pub fn lateral_profile(lam: f64, na: [f64; 2], radius: [f64; 2], step: f64, n: usize) -> Vec<f64> {
     let v = |i: usize, r: f64| 2.0 * PI * na[i] * r / lam;
     let (d1, d2) = (disk(v(0, radius[0])), disk(v(1, radius[1])));
-    (0..n).map(|k| d1.avg(v(0, k as f64 * step), 0.0) * d2.avg(v(1, k as f64 * step), 0.0)).collect()
+    (0..n)
+        .map(|k| d1.avg(v(0, k as f64 * step), 0.0) * d2.avg(v(1, k as f64 * step), 0.0))
+        .collect()
 }
 
 pub fn lateral_step(lam: f64, na: [f64; 2]) -> f64 {
@@ -227,7 +333,11 @@ mod tests {
     fn point_pinhole_mirror_fwhm_is_0886() {
         let a = axial(0.05, 0.05);
         let z_norm = a.mirror_fwhm_u() / 2.0;
-        assert!((z_norm / (2.0 * PI) - 0.886).abs() < 0.03, "{}", z_norm / (2.0 * PI));
+        assert!(
+            (z_norm / (2.0 * PI) - 0.886).abs() < 0.03,
+            "{}",
+            z_norm / (2.0 * PI)
+        );
     }
 
     #[test]

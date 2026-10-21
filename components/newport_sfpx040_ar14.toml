@@ -1,6 +1,6 @@
 name = "Newport SFPX040.AR14 (425-675 nm AR)"
 kind = "obj"
-note = "As SFPX040 with a 425-675 nm coating."
+note = "As SFPX040 (same geometry) with a 425-675 nm coating."
 [params]
 f = 0.0127
 lamf = 587.6e-9

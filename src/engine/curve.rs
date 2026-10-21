@@ -27,6 +27,9 @@ impl Curve {
 
     pub fn integral(&self, lo: f64, hi: f64, n: usize) -> f64 {
         let dx = (hi - lo) / n as f64;
-        (0..n).map(|i| self.at(lo + (i as f64 + 0.5) * dx)).sum::<f64>() * dx
+        (0..n)
+            .map(|i| self.at(lo + (i as f64 + 0.5) * dx))
+            .sum::<f64>()
+            * dx
     }
 }

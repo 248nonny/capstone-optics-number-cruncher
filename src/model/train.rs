@@ -29,6 +29,6 @@ pub fn default_train() -> Vec<Instance> {
         inst("lat", "lat", "Lateral resolution"),
         inst("ax", "ax", "Axial response"),
         inst("ph", "ph", "Photon budget"),
-        inst("pr", "pr", "Precision"),
+        inst("pr", "pr", "Noise floor (smaller is better)"),
     ]
 }

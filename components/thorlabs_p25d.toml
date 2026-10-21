@@ -1,5 +1,5 @@
 name = "Thorlabs P25D (25 um pinhole)"
 kind = "pin"
-note = "Part number from memory, verify."
+note = "Thorlabs D-series pinholes are stainless foil in a 1 inch mount; the exact P25D tolerance and thickness were not found online. Verify."
 [params]
 d = 25e-6
