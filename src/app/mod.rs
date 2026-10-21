@@ -98,13 +98,34 @@ impl App {
                         .get(&name)
                         .map(|c| c.params.clone())
                         .unwrap_or_default();
-                    params
+                    for (k, x) in params
                         .iter()
-                        .for_each(|(k, x)| self.inputs.set(&format!("smp.{k}"), *x));
+                        .filter(|(k, _)| matches!(k.as_str(), "r" | "spec"))
+                    {
+                        self.inputs.set(&format!("smp.{k}"), *x);
+                    }
                 }
                 Action::Selection(sel) => self.parts.selection = sel,
                 Action::Apply(e) => e.apply(&mut self.inputs),
             }
+        }
+        self.sanitise();
+    }
+
+    fn sanitise(&mut self) {
+        for (i, d) in self
+            .model
+            .defs
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| !d.output)
+        {
+            let x = self.inputs.v[i];
+            self.inputs.v[i] = if x.is_finite() {
+                x.clamp(d.min, d.max)
+            } else {
+                d.default
+            };
         }
     }
 
@@ -123,6 +144,7 @@ impl App {
             .and_then(|t| {
                 persist::load(&self.model, &mut self.inputs, &mut self.parts.selection, &t)
             });
+        self.sanitise();
         self.dirty |= loaded.is_ok();
         self.status = loaded.map_or_else(
             |e| format!("Load failed: {e}"),

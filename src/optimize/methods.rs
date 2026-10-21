@@ -60,7 +60,7 @@ pub fn gradient_descent(
                 x,
                 f: fx,
                 evals,
-                stalled: !norm2.is_finite(),
+                stalled: true,
             };
         }
         let mut accepted = false;

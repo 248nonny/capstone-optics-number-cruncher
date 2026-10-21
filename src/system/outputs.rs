@@ -1,7 +1,7 @@
 use super::{inputs, optics::*, readout};
 use crate::engine::{get::Get, values::Values, var::VarDef};
 
-const SOFT_P: f64 = 8.0;
+const SOFT_P: f64 = 16.0;
 const IMAGE_PIXELS: f64 = 2000.0;
 
 pub const BINNING: &[&str] = &["x1", "x2", "x4"];
@@ -28,7 +28,7 @@ pub fn output_defs() -> Vec<VarDef> {
         o("ax.peak_max", "Widest spectral peak", "nm", NM, 0.1 * NM, 500.0 * NM),
         o("pr.mean", "Height noise σ_z, mean (lower is better)", "nm", NM, 0.01 * NM, 1e6 * NM).doc("Cramér–Rao bound on the height error for a known peak shape, averaged over the depth range."),
         o("pr.worst", "Height noise σ_z, worst (lower is better)", "nm", NM, 0.01 * NM, 1e6 * NM),
-        o("pr.soft", "Height noise σ_z, smooth worst case", "nm", NM, 0.01 * NM, 1e6 * NM).doc("An 8-norm over the depth range: close to the worst case but smooth, which is what the optimiser minimises."),
+        o("pr.soft", "Height noise σ_z, smooth worst case", "nm", NM, 0.01 * NM, 1e6 * NM).doc("A 16-norm over the depth range: close to the worst case but smooth, which is what the optimiser minimises."),
         o("pr.snr_mean", "Peak SNR, mean", "", 1.0, 1e-3, 1e5),
         o("pr.snr_worst", "Peak SNR, worst", "", 1.0, 1e-3, 1e5),
         o("ph.p_pin", "Power into pinhole 1 (400-800 nm)", "µW", 1e-6, 1e-9, 1.0).doc("Radiance × (π²/4)(1.22 λ·AU)²: set by the pinhole size in Airy units and the LED, not by NA or the physical pinhole diameter."),

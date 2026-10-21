@@ -7,6 +7,7 @@ const FILL: f64 = 0.8;
 const PRNU: f64 = 0.005;
 const WINDOW: f64 = 2.5;
 const UNMEASURABLE: f64 = 1.0;
+const MIN_READ_CLOCK: f64 = 0.1e6;
 
 pub struct Node {
     pub lam: f64,
@@ -110,7 +111,7 @@ fn candidates(rate: f64) -> Vec<(usize, bool, f64, f64)> {
             } else {
                 detector::CLOCKS_FULL[bin]
             };
-            all.push((bin, roi, clocks, 1.1 * clocks * rate));
+            all.push((bin, roi, clocks, (1.1 * clocks * rate).max(MIN_READ_CLOCK)));
         }
     }
     all

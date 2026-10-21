@@ -103,7 +103,7 @@ pub fn defs() -> Vec<VarDef> {
             .see(&["opt.shape", "spc.disp"]),
         VarDef::new("opt.shape", "Dispersion shape", "", 1.0, 0.0, 6.0, 1.0)
             .pick(SHAPES, 1)
-            .doc("How focus depends on wavelength. A singlet is nonlinear (finer height steps at the blue end); linear and diffractive are idealised. For a refractive shape the NA also changes with wavelength because the stop is fixed.")
+            .doc("How focus depends on wavelength. A singlet is nonlinear (finer height steps at the blue end); linear and diffractive are idealised. For the refractive and diffractive shapes the NA also changes with wavelength because the stop is fixed (NA ∝ 1/f(λ)).")
             .see(&["opt.dz", "opt.na"]),
         v("opt.t", "Optical throughput, one pass", "", 1.0, 0.2, 1.0, 0.8)
             .doc("Transmission of the collimator and objective in one direction. The beam splitter (50:50, 2 % loss) is a constant.")

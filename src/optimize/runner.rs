@@ -51,7 +51,17 @@ pub fn spawn(
             repaint();
             s.load(Ordering::Relaxed)
         };
-        let trace = methods::run(method, &f, &x0, budget, &mut report);
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            methods::run(method, &f, &x0, budget, &mut report)
+        }));
+        let Ok(trace) = outcome else {
+            if let Ok(mut g) = p.lock() {
+                g.done = true;
+                g.message = "Failed".into();
+            }
+            repaint();
+            return;
+        };
         if let Ok(mut g) = p.lock() {
             g.history.push(trace.f);
             (g.best, g.cost, g.evals, g.done) = (trace.x, trace.f, trace.evals, true);

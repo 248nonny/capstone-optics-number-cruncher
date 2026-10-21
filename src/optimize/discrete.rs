@@ -94,12 +94,17 @@ pub fn evaluate_all(ctx: &Ctx, selections: Vec<Selection>) -> Vec<Row> {
                         .map(|sel| {
                             let e = effective(lib, sel, target);
                             let mut v = base.clone();
+                            let required = v.g("opt.dz");
                             e.apply(&mut v);
+                            v.set("opt.dz", required);
                             let k = metrics(&evaluate(&v));
+                            let miss = e.dz.map_or(0.0, |d| (d / required - 1.0).abs());
+                            let cost = objective.cost(&k)
+                                + objective.penalty * (miss - 0.15).max(0.0).powi(2);
                             Row {
                                 selection: sel.clone(),
                                 effective: e,
-                                cost: objective.cost(&k),
+                                cost,
                                 metrics: Some(k),
                             }
                         })

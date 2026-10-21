@@ -46,8 +46,10 @@ impl<T: Send + 'static> Latest<T> {
                     }
                 }
             };
-            let out = job();
-            inner.lock().unwrap().result = Some(out);
+            let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(job));
+            if let Ok(out) = out {
+                inner.lock().unwrap().result = Some(out);
+            }
             done();
         });
     }
@@ -59,5 +61,25 @@ impl<T: Send + 'static> Latest<T> {
     pub fn busy(&self) -> bool {
         let g = self.inner.lock().unwrap();
         g.busy || g.pending.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_panicking_job_does_not_freeze_the_worker() {
+        let w: Latest<u32> = Latest::new();
+        w.submit(|| panic!("boom"), || {});
+        let t = std::time::Instant::now();
+        while w.busy() && t.elapsed().as_secs() < 5 {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        w.submit(|| 7, || {});
+        while w.busy() && t.elapsed().as_secs() < 10 {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!(w.take(), Some(7));
     }
 }

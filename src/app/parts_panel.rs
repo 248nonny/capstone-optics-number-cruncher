@@ -235,6 +235,10 @@ impl PartsPanel {
                         self.selection.clone(),
                     );
                     let (vars, best) = (f.problem.vars.clone(), f.best.clone());
+                    let mut base = base;
+                    for (d, &u) in vars.iter().zip(&best) {
+                        base.v[d.idx] = d.value(u);
+                    }
                     let c = ctx.clone();
                     self.search.submit(
                         move || {

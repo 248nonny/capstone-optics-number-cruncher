@@ -105,6 +105,43 @@ mod tests {
     }
 
     #[test]
+    fn the_part_search_costs_every_part_at_the_required_depth_range() {
+        let lib = crate::parts::library();
+        let model = system::model();
+        let base = model.defaults();
+        let all = discrete::all(&lib, [true, true, true, false], &Selection::default());
+        let rows = discrete::evaluate_all(
+            &discrete::Ctx {
+                lib: &lib,
+                base: &base,
+                objective: &Objective::default(),
+            },
+            all,
+        );
+        let ar = rows
+            .iter()
+            .find(|r| {
+                r.selection
+                    .objective
+                    .as_deref()
+                    .is_some_and(|n| n.contains("AR14"))
+            })
+            .unwrap();
+        let plain = rows
+            .iter()
+            .find(|r| {
+                r.selection
+                    .objective
+                    .as_deref()
+                    .is_some_and(|n| n.contains("uncoated"))
+                    && r.selection.lens == ar.selection.lens
+                    && r.selection.pinhole == ar.selection.pinhole
+            })
+            .unwrap();
+        assert!(ar.cost < plain.cost);
+    }
+
+    #[test]
     fn snapping_prefers_parts_near_the_optimum() {
         let lib = crate::parts::library();
         let model = system::model();

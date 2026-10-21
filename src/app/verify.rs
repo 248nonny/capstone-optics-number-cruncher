@@ -375,7 +375,17 @@ fn realism(ui: &mut Ui, inputs: &Values, r: &Report) {
     let lam: Vec<f64> = (0..sig.len()).map(|i| s.lam[n.first + i]).collect();
     let sigma_lam = montecarlo::centroid_sigma(&sig, &var, &lam);
     let sigma_z = sigma_lam * s.disp.slope(n.lam).abs();
-    let crb = r.assessment.sigma[r.nodes.len() / 2];
+    let crb = readout::assess(
+        &s,
+        std::slice::from_ref(&n),
+        readout::Readout {
+            bin: 0,
+            roi: false,
+            fread: a.fread,
+            texp: a.texp,
+        },
+    )
+    .sigma[0];
     table(
         ui,
         "mc",

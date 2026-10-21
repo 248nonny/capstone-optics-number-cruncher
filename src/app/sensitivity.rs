@@ -58,14 +58,17 @@ impl Sensitivity {
                         let (m, objective, mid, at) = (&m, &objective, &mid, &at);
                         s.spawn(move || {
                             let (up, down) = (at(i, 1.0 + STEP), at(i, 1.0 - STEP));
+                            let rel = ((up.values.v[i] - down.values.v[i]) / mid.values.v[i])
+                                .abs()
+                                .max(1e-12);
                             let change = |id: &str| {
-                                (up.values.g(id) - down.values.g(id)) / (2.0 * mid.values.g(id))
-                                    * 100.0
+                                (up.values.g(id) - down.values.g(id)) / (rel * mid.values.g(id))
+                                    * 10.0
                             };
                             let cost = (objective.cost(&metrics(&up))
                                 - objective.cost(&metrics(&down)))
-                                / (2.0 * objective.cost(&metrics(mid)))
-                                * 100.0;
+                                / (rel * objective.cost(&metrics(mid)))
+                                * 10.0;
                             Row {
                                 id: m.defs[i].id.clone(),
                                 label: m.defs[i].label,
@@ -91,7 +94,14 @@ impl Sensitivity {
         objective: &Objective,
     ) {
         ui.weak("Percent change of each output for a +10 % change of each knob (central difference, other knobs held). Knobs are ranked by their effect on the optimiser's cost; the choice knobs (dispersion shape, aberrations on/off, temperature) are not listed.");
-        let key = format!("{version}");
+        let key = format!(
+            "{version}|{}|{}|{}|{}|{}",
+            objective.w_lateral,
+            objective.w_height,
+            objective.lim_lateral,
+            objective.lim_height,
+            objective.penalty
+        );
         if self.submitted != key {
             self.submitted = key.clone();
             let ctx = ui.ctx().clone();
