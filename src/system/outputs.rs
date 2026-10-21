@@ -59,6 +59,7 @@ pub struct Report {
     pub assessment: readout::Assessment,
     pub weights: Vec<f64>,
     pub flags: Vec<String>,
+    pub budget: Vec<(&'static str, f64)>,
 }
 
 fn height_weights(nodes: &[readout::Node]) -> Vec<f64> {
@@ -130,7 +131,8 @@ pub fn evaluate(inputs: &Values) -> Report {
     put("acq.fov", IMAGE_PIXELS * step);
     put("acq.arate", s.p.rate * step * step);
     let flags = flags(&s, &values, &a);
-    Report { values, nodes, assessment: a, weights: w, flags }
+    let budget = budget(&s, &nodes[nodes.len() / 2], a.readout.texp);
+    Report { values, nodes, assessment: a, weights: w, flags, budget }
 }
 
 fn flags(s: &Setup, v: &Values, a: &readout::Assessment) -> Vec<String> {
@@ -153,3 +155,36 @@ fn flags(s: &Setup, v: &Values, a: &readout::Assessment) -> Vec<String> {
     out
 }
 
+
+fn budget(s: &Setup, n: &readout::Node, texp: f64) -> Vec<(&'static str, f64)> {
+    let l = n.lam;
+    vec![
+        ("Power into pinhole 1 (W/nm): LED radiance × (π²/4)(1.22 λ AU)² × proximity", s.p_in(l)),
+        ("Collimator and objective, one pass", s.p.t),
+        ("Beam-splitter reflection", BS_R),
+        ("Sample: reflectance × capture × pinhole-2 pass × Strehl (in focus)", s.gain(l, n.z)),
+        ("Objective and collimator on return, beam-splitter transmission", s.p.t * (1.0 - BS_R - BS_LOSS)),
+        ("Spectrometer efficiency", s.p.eff),
+        ("Quantum efficiency", crate::physics::spectral::qe().at(l * 1e9)),
+        ("Photons per W/nm per exposure (Δλ_px · t_exp / hν)", s.p.disp * 1e9 * texp / crate::physics::radiometry::photon_energy(l)),
+    ]
+}
+
+pub struct SpectrumPlot {
+    pub lam: Vec<f64>,
+    pub signal: Vec<f64>,
+    pub background: Vec<f64>,
+    pub noise: Vec<f64>,
+}
+
+pub fn spectrum(inputs: &Values, report: &Report, fraction: f64) -> SpectrumPlot {
+    let s = Setup::new(inputs);
+    let (texp, z) = (report.assessment.readout.texp, fraction * s.p.dz);
+    let profile = crate::physics::spectrometer::blur(&(0..N_PX).map(|i| s.rate(i, z)).collect::<Vec<_>>(), s.sigma_px);
+    let rn = crate::physics::detector::read_noise_at(report.assessment.readout.fread);
+    let dark = crate::physics::detector::dark_rate_at(s.p.celsius);
+    let signal: Vec<f64> = profile.iter().map(|r| r * texp).collect();
+    let background: Vec<f64> = (0..N_PX).map(|i| (s.stray(i) + dark) * texp).collect();
+    let noise = (0..N_PX).map(|i| (signal[i] + background[i] + rn * rn).sqrt()).collect();
+    SpectrumPlot { lam: s.lam.clone(), signal, background, noise }
+}

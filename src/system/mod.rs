@@ -3,10 +3,10 @@ pub mod optics;
 pub mod outputs;
 pub mod readout;
 
-use crate::engine::{library::Library, model::Model};
+use crate::engine::model::Model;
 
 pub fn model() -> Model {
-    Model::new(outputs::all_defs(), vec![], Library::default())
+    Model::new(outputs::all_defs(), vec![], crate::model::library::library())
 }
 
 #[cfg(test)]

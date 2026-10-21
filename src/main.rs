@@ -1,3 +1,4 @@
+mod app;
 mod engine;
 mod model;
 mod parts;
@@ -20,6 +21,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Chromatic confocal number cruncher",
         options,
-        Box::new(move |_| Ok(Box::new(ui::App::new(arg(1), arg(2), arg(3) > 0)))),
+        Box::new(move |_| Ok(Box::new(app::App::new(arg(1), arg(2), arg(3) > 0)))),
     )
 }
