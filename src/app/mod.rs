@@ -1,4 +1,5 @@
 mod knobs;
+mod plots;
 mod results;
 mod widgets;
 
@@ -11,6 +12,7 @@ use widgets::{Action, View};
 #[derive(PartialEq, Clone, Copy)]
 enum Tab {
     Results,
+    Plots,
 }
 
 pub struct App {
@@ -21,14 +23,15 @@ pub struct App {
     worker: Latest<(u64, Report)>,
     changed_at: Instant,
     tab: Tab,
+    plot: plots::PlotState,
     dirty: bool,
 }
 
 impl App {
-    pub fn new(_tab: usize, _page: usize, _open: bool) -> Self {
+    pub fn new(tab: usize, page: usize, _open: bool) -> Self {
         let model = Arc::new(system::model());
         crate::physics::confocal::warm_background();
-        Self { inputs: model.defaults(), model, version: 0, shown: None, worker: Latest::new(), changed_at: Instant::now(), tab: Tab::Results, dirty: true }
+        Self { inputs: model.defaults(), model, version: 0, shown: None, worker: Latest::new(), changed_at: Instant::now(), tab: [Tab::Results, Tab::Plots][tab.min(1)], plot: plots::PlotState::new(page), dirty: true }
     }
 
     fn apply(&mut self, acts: Vec<Action>) {
@@ -72,6 +75,7 @@ impl eframe::App for App {
         TopBottomPanel::top("top").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.tab, Tab::Results, "Results");
+                ui.selectable_value(&mut self.tab, Tab::Plots, "Plots");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.colored_label(if flags.is_empty() { egui::Color32::LIGHT_GREEN } else { egui::Color32::GOLD }, format!("{} warning(s)", flags.len()));
                     if stale {
@@ -90,6 +94,11 @@ impl eframe::App for App {
                 }
                 match self.tab {
                     Tab::Results => results::ui(ui, &view),
+                    Tab::Plots => {
+                        if let Some((_, r)) = self.shown.as_ref() {
+                            plots::ui(ui, &mut self.plot, &self.inputs, r);
+                        }
+                    }
                 }
             });
         });
