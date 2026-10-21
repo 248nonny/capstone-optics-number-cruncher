@@ -1,13 +1,10 @@
 pub mod aberration;
 pub mod confocal;
 pub mod detector;
-pub mod dispersion;
-pub mod geometry;
 pub mod glass;
 pub mod halfmax;
 pub mod montecarlo;
 pub mod radiometry;
-pub mod signal;
 pub mod special;
 pub mod spectral;
 pub mod spectrometer;

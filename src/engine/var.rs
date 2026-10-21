@@ -17,7 +17,6 @@ pub struct VarDef {
     pub choices: &'static [&'static str],
     pub output: bool,
     pub design: bool,
-    pub ideal: Option<f64>,
     pub hide: Option<(&'static str, f64)>,
     pub doc: &'static str,
     pub related: &'static [&'static str],
@@ -46,7 +45,6 @@ impl VarDef {
             choices: &[],
             output: false,
             design: false,
-            ideal: None,
             hide: None,
             doc: "",
             related: &[],
@@ -69,24 +67,8 @@ impl VarDef {
         self
     }
 
-    pub fn imperfect(mut self, ideal: f64) -> Self {
-        self.ideal = Some(ideal);
-        self.hide = Some(("on", 1.0));
-        self
-    }
-
-    pub fn hidden_if_ideal(mut self) -> Self {
-        self.hide = Some(("on", 1.0));
-        self
-    }
-
     pub fn hide_when(mut self, local: &'static str, value: f64) -> Self {
         self.hide = Some((local, value));
-        self
-    }
-
-    pub fn when_on(mut self) -> Self {
-        self.hide = Some(("on", 0.0));
         self
     }
 
@@ -110,9 +92,5 @@ impl VarDef {
 
     pub fn discrete(&self) -> bool {
         !self.choices.is_empty()
-    }
-
-    pub fn prefix(&self) -> &str {
-        self.id.split_once('.').map_or("", |(p, _)| p)
     }
 }

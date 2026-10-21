@@ -57,7 +57,6 @@ pub struct Report {
     pub values: Values,
     pub nodes: Vec<readout::Node>,
     pub assessment: readout::Assessment,
-    pub weights: Vec<f64>,
     pub flags: Vec<String>,
     pub budget: Vec<(&'static str, f64)>,
 }
@@ -66,7 +65,13 @@ fn height_weights(nodes: &[readout::Node]) -> Vec<f64> {
     let n = nodes.len();
     let w: Vec<f64> = (0..n)
         .map(|k| {
-            let span = if k == 0 { nodes[1].z - nodes[0].z } else if k == n - 1 { nodes[n - 1].z - nodes[n - 2].z } else { (nodes[k + 1].z - nodes[k - 1].z) / 2.0 };
+            let span = if k == 0 {
+                nodes[1].z - nodes[0].z
+            } else if k == n - 1 {
+                nodes[n - 1].z - nodes[n - 2].z
+            } else {
+                (nodes[k + 1].z - nodes[k - 1].z) / 2.0
+            };
             span.abs()
         })
         .collect();
@@ -92,9 +97,15 @@ pub fn evaluate(inputs: &Values) -> Report {
     let a = readout::best(&s, &nodes);
     let w = height_weights(&nodes);
     let col = |f: fn(&readout::Node) -> f64| nodes.iter().map(f).collect::<Vec<_>>();
-    let (lat, spec, diff, peak) = (col(|n| n.lateral), col(|n| n.ax_spec), col(|n| n.ax_diff), col(|n| n.peak_nm));
+    let (lat, spec, diff, peak) = (
+        col(|n| n.lateral),
+        col(|n| n.ax_spec),
+        col(|n| n.ax_diff),
+        col(|n| n.peak_nm),
+    );
     let strehl = col(|n| n.strehl);
-    let soft = (a.sigma.iter().map(|x| x.powf(SOFT_P)).sum::<f64>() / a.sigma.len() as f64).powf(1.0 / SOFT_P);
+    let soft = (a.sigma.iter().map(|x| x.powf(SOFT_P)).sum::<f64>() / a.sigma.len() as f64)
+        .powf(1.0 / SOFT_P);
     let pad = max(&peak);
     let px_needed = (BAND.1 - BAND.0 + 2.0 * pad) / s.p.disp;
     let step = 0.5 * max(&lat);
@@ -132,7 +143,13 @@ pub fn evaluate(inputs: &Values) -> Report {
     put("acq.arate", s.p.rate * step * step);
     let flags = flags(&s, &values, &a);
     let budget = budget(&s, &nodes[nodes.len() / 2], a.readout.texp);
-    Report { values, nodes, assessment: a, weights: w, flags, budget }
+    Report {
+        values,
+        nodes,
+        assessment: a,
+        flags,
+        budget,
+    }
 }
 
 fn flags(s: &Setup, v: &Values, a: &readout::Assessment) -> Vec<String> {
@@ -144,29 +161,65 @@ fn flags(s: &Setup, v: &Values, a: &readout::Assessment) -> Vec<String> {
         }
     };
     add(g("acq.fill") > 1.0, format!("The band plus one peak width on each side needs {:.0} % of the sensor: peaks at the ends of the depth range are cut off", g("acq.fill") * 100.0));
-    add(!a.feasible, "The sample rate is beyond what the epc901 can read out; the fastest read-out is used".into());
-    add(g("pr.snr_worst") < 10.0, format!("Worst-case peak SNR is {:.1}: photon or read-noise limited", g("pr.snr_worst")));
+    add(
+        !a.feasible,
+        "The sample rate is beyond what the epc901 can read out; the fastest read-out is used"
+            .into(),
+    );
+    add(
+        g("pr.snr_worst") < 10.0,
+        format!(
+            "Worst-case peak SNR is {:.1}: photon or read-noise limited",
+            g("pr.snr_worst")
+        ),
+    );
     add(g("ph.strehl") < 0.8, format!("Strehl {:.2} at the worst wavelength: not diffraction limited, resolution numbers are optimistic", g("ph.strehl")));
-    add(AIRY_V * s.p.au * s.p.ratio.max(1.0) * LAM0 / BAND.0 > 24.0, "The pinhole is too large for the response tables; results are unreliable".into());
-    add(s.p.na > 0.5, "NA above 0.5: the paraxial axial-response normalisation is inaccurate".into());
+    add(
+        AIRY_V * s.p.au * s.p.ratio.max(1.0) * LAM0 / BAND.0 > 24.0,
+        "The pinhole is too large for the response tables; results are unreliable".into(),
+    );
+    add(
+        s.p.na > 0.5,
+        "NA above 0.5: the paraxial axial-response normalisation is inaccurate".into(),
+    );
     add(s.p.res > g("ax.peak_min") / 4.0, format!("Spectral resolution {:.1} nm is more than a quarter of the narrowest peak ({:.1} nm): the peaks are smeared", s.p.res * 1e9, g("ax.peak_min") * 1e9));
-    add(g("ax.peak_min") / s.p.disp < 4.0, format!("Fewer than 4 pixels across the narrowest peak ({:.1} px)", g("ax.peak_min") / s.p.disp));
+    add(
+        g("ax.peak_min") / s.p.disp < 4.0,
+        format!(
+            "Fewer than 4 pixels across the narrowest peak ({:.1} px)",
+            g("ax.peak_min") / s.p.disp
+        ),
+    );
     add(g("acq.duty") < 0.5, format!("Exposure is cut to {:.0} µs ({:.0} % of the period) to avoid saturating the brightest pixel", g("acq.texp") * 1e6, g("acq.duty") * 100.0));
     out
 }
 
-
 fn budget(s: &Setup, n: &readout::Node, texp: f64) -> Vec<(&'static str, f64)> {
     let l = n.lam;
     vec![
-        ("Power into pinhole 1 (W/nm): LED radiance × (π²/4)(1.22 λ AU)² × proximity", s.p_in(l)),
+        (
+            "Power into pinhole 1 (W/nm): LED radiance × (π²/4)(1.22 λ AU)² × proximity",
+            s.p_in(l),
+        ),
         ("Collimator and objective, one pass", s.p.t),
         ("Beam-splitter reflection", BS_R),
-        ("Sample: reflectance × capture × pinhole-2 pass × Strehl (in focus)", s.gain(l, n.z)),
-        ("Objective and collimator on return, beam-splitter transmission", s.p.t * (1.0 - BS_R - BS_LOSS)),
+        (
+            "Sample: reflectance × capture × pinhole-2 pass × Strehl (in focus)",
+            s.gain(l, n.z),
+        ),
+        (
+            "Objective and collimator on return, beam-splitter transmission",
+            s.p.t * (1.0 - BS_R - BS_LOSS),
+        ),
         ("Spectrometer efficiency", s.p.eff),
-        ("Quantum efficiency", crate::physics::spectral::qe().at(l * 1e9)),
-        ("Photons per W/nm per exposure (Δλ_px · t_exp / hν)", s.p.disp * 1e9 * texp / crate::physics::radiometry::photon_energy(l)),
+        (
+            "Quantum efficiency",
+            crate::physics::spectral::qe().at(l * 1e9),
+        ),
+        (
+            "Photons per W/nm per exposure (Δλ_px · t_exp / hν)",
+            s.p.disp * 1e9 * texp / crate::physics::radiometry::photon_energy(l),
+        ),
     ]
 }
 
@@ -180,11 +233,21 @@ pub struct SpectrumPlot {
 pub fn spectrum(inputs: &Values, report: &Report, fraction: f64) -> SpectrumPlot {
     let s = Setup::new(inputs);
     let (texp, z) = (report.assessment.readout.texp, fraction * s.p.dz);
-    let profile = crate::physics::spectrometer::blur(&(0..N_PX).map(|i| s.rate(i, z)).collect::<Vec<_>>(), s.sigma_px);
+    let profile = crate::physics::spectrometer::blur(
+        &(0..N_PX).map(|i| s.rate(i, z)).collect::<Vec<_>>(),
+        s.sigma_px,
+    );
     let rn = crate::physics::detector::read_noise_at(report.assessment.readout.fread);
     let dark = crate::physics::detector::dark_rate_at(s.p.celsius);
     let signal: Vec<f64> = profile.iter().map(|r| r * texp).collect();
     let background: Vec<f64> = (0..N_PX).map(|i| (s.stray(i) + dark) * texp).collect();
-    let noise = (0..N_PX).map(|i| (signal[i] + background[i] + rn * rn).sqrt()).collect();
-    SpectrumPlot { lam: s.lam.clone(), signal, background, noise }
+    let noise = (0..N_PX)
+        .map(|i| (signal[i] + background[i] + rn * rn).sqrt())
+        .collect();
+    SpectrumPlot {
+        lam: s.lam.clone(),
+        signal,
+        background,
+        noise,
+    }
 }

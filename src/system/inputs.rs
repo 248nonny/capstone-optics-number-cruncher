@@ -15,7 +15,10 @@ const NM: f64 = 1e-9;
 const UM: f64 = 1e-6;
 const MA: f64 = 1e-3;
 const AIRY: &[(&str, &str)] = &[("Airy disk", "https://en.wikipedia.org/wiki/Airy_disk")];
-const CONFOCAL: &[(&str, &str)] = &[("Confocal microscopy", "https://en.wikipedia.org/wiki/Confocal_microscopy")];
+const CONFOCAL: &[(&str, &str)] = &[(
+    "Confocal microscopy",
+    "https://en.wikipedia.org/wiki/Confocal_microscopy",
+)];
 
 pub struct Params {
     pub current: f64,
@@ -70,7 +73,9 @@ pub const GROUPS: [(&str, &str); 5] = [
 ];
 
 pub fn defs() -> Vec<VarDef> {
-    let v = |id: &str, label, unit, scale, min, max, default| VarDef::new(id, label, unit, scale, min, max, default);
+    let v = |id: &str, label, unit, scale, min, max, default| {
+        VarDef::new(id, label, unit, scale, min, max, default)
+    };
     vec![
         v("src.i", "LED drive current", "mA", MA, 50.0 * MA, 1000.0 * MA, 350.0 * MA)
             .log()

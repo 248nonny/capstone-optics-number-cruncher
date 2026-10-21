@@ -1,6 +1,0 @@
-name = "Thorlabs BS010 (50:50 cube, 400-700 nm)"
-kind = "bs"
-note = "10 mm N-BK7 cube. Listing data, verify."
-[params]
-r = 0.5
-loss = 0.03

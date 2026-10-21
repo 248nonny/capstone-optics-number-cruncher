@@ -1,5 +1,4 @@
 use super::spectral::{led, vlambda};
-use crate::engine::get::Get;
 use std::sync::OnceLock;
 
 pub const H: f64 = 6.62607015e-34;
@@ -16,10 +15,6 @@ pub const LED_SIDE: f64 = 1.1e-3;
 
 pub fn flux_at(flux_ref: f64, current: f64) -> f64 {
     flux_ref * (current / 0.35).powf(FLUX_EXPONENT)
-}
-
-pub fn flux_lm(g: &dyn Get) -> f64 {
-    flux_at(g.g("led.flux_ref"), g.g("led.i"))
 }
 
 fn mean_v() -> f64 {
@@ -44,16 +39,8 @@ pub fn watts(lumens: f64) -> f64 {
     lumens / (LUMEN_PER_WATT * mean_v())
 }
 
-pub fn flux_w(g: &dyn Get) -> f64 {
-    watts(flux_lm(g))
-}
-
 pub fn radiance_of(lumens: f64, side: f64) -> f64 {
     watts(lumens) / (std::f64::consts::PI * side * side)
-}
-
-pub fn radiance(g: &dyn Get) -> f64 {
-    radiance_of(flux_lm(g), g.g("led.side"))
 }
 
 pub fn per_nm(radiance: f64, lam: f64) -> f64 {

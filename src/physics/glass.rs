@@ -1,12 +1,3 @@
-pub const NAMES: &[&str] = &[
-    "N-SF11",
-    "N-BK7",
-    "F2",
-    "N-SF6HT",
-    "Fused silica",
-    "Diffractive",
-];
-
 const SELLMEIER: [([f64; 3], [f64; 3]); 5] = [
     (
         [1.73759695, 0.313747346, 1.89878101],
@@ -69,10 +60,10 @@ mod tests {
             assert!(
                 (index(g, 587.56e-9) - nd).abs() < 2e-4,
                 "{} nd {}",
-                NAMES[g],
+                g,
                 index(g, 587.56e-9)
             );
-            assert!((abbe(g) - vd).abs() < 0.3, "{} vd {}", NAMES[g], abbe(g));
+            assert!((abbe(g) - vd).abs() < 0.3, "{} vd {}", g, abbe(g));
         }
     }
 

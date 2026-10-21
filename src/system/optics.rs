@@ -22,11 +22,16 @@ pub struct Dispersion {
 
 impl Dispersion {
     fn focal_like(&self, l: f64) -> f64 {
-        if self.shape == 0 { l } else { 1.0 / glass::power_ratio(self.shape - 1, l, LAM0) }
+        if self.shape == 0 {
+            l
+        } else {
+            1.0 / glass::power_ratio(self.shape - 1, l, LAM0)
+        }
     }
 
     pub fn z(&self, l: f64) -> f64 {
-        self.dz * (self.focal_like(l) - self.focal_like(BAND.0)) / (self.focal_like(BAND.1) - self.focal_like(BAND.0))
+        self.dz * (self.focal_like(l) - self.focal_like(BAND.0))
+            / (self.focal_like(BAND.1) - self.focal_like(BAND.0))
     }
 
     pub fn slope(&self, l: f64) -> f64 {
@@ -34,7 +39,11 @@ impl Dispersion {
     }
 
     pub fn na_ratio(&self, l: f64) -> f64 {
-        if self.shape == 0 { 1.0 } else { glass::power_ratio(self.shape - 1, l, LAM0) }
+        if self.shape == 0 {
+            1.0
+        } else {
+            glass::power_ratio(self.shape - 1, l, LAM0)
+        }
     }
 }
 
@@ -52,10 +61,18 @@ impl Setup {
     pub fn new(g: &dyn Get) -> Self {
         let p = Params::read(g);
         let vp0 = [AIRY_V * p.au, AIRY_V * p.au * p.ratio];
-        let lam = (0..N_PX).map(|i| CENTER + (i as f64 - (N_PX as f64 - 1.0) / 2.0) * p.disp).collect();
-        let sigma_px = ((p.res / 2.355 / p.disp).powi(2) + 1.0 / 12.0 + CROSSTALK * CROSSTALK_SIGMA_PX.powi(2)).sqrt();
+        let lam = (0..N_PX)
+            .map(|i| CENTER + (i as f64 - (N_PX as f64 - 1.0) / 2.0) * p.disp)
+            .collect();
+        let sigma_px = ((p.res / 2.355 / p.disp).powi(2)
+            + 1.0 / 12.0
+            + CROSSTALK * CROSSTALK_SIGMA_PX.powi(2))
+        .sqrt();
         Self {
-            disp: Dispersion { shape: p.shape, dz: p.dz },
+            disp: Dispersion {
+                shape: p.shape,
+                dz: p.dz,
+            },
             bank: Bank::new(vp0, LAM0, 430e-9, 700e-9),
             radiance: rad::radiance_of(rad::flux_at(rad::LED_FLUX_REF, p.current), rad::LED_SIDE),
             etendue: PI * PI / 4.0 * (1.22 * LAM0 * p.au).powi(2),
@@ -70,7 +87,10 @@ impl Setup {
     }
 
     pub fn vp(&self, l: f64) -> [f64; 2] {
-        [AIRY_V * self.p.au * LAM0 / l, AIRY_V * self.p.au * self.p.ratio * LAM0 / l]
+        [
+            AIRY_V * self.p.au * LAM0 / l,
+            AIRY_V * self.p.au * self.p.ratio * LAM0 / l,
+        ]
     }
 
     pub fn strehl(&self, l: f64) -> f64 {
@@ -89,7 +109,9 @@ impl Setup {
         let na = self.na(l);
         let u = 2.0 * PI * na * na * (z - self.disp.z(l)) / l;
         let s = self.strehl(l);
-        self.p.r * (self.p.spec * self.bank.mirror_at(l, 2.0 * u) * s.powi(4) + (1.0 - self.p.spec) * na * na * self.bank.plane_at(l, u) * s.powi(2))
+        self.p.r
+            * (self.p.spec * self.bank.mirror_at(l, 2.0 * u) * s.powi(4)
+                + (1.0 - self.p.spec) * na * na * self.bank.plane_at(l, u) * s.powi(2))
     }
 
     fn electrons_per_s(&self, i: usize, watts_per_nm: f64) -> f64 {

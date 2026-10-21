@@ -1,8 +1,8 @@
 mod app;
+mod checks;
 mod engine;
-mod model;
-mod parts;
 mod optimize;
+mod parts;
 mod physics;
 mod system;
 
