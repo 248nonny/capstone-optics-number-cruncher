@@ -109,12 +109,19 @@ pub fn row(ui: &mut Ui, v: &View, d: &VarDef, acts: &mut Vec<Action>) {
             acts.push(Action::Set(d.id.clone(), y * d.scale));
         }
     }
+    if !d.refs.is_empty() || !d.related.is_empty() {
+        ui.menu_button("?", |ui| {
+            tooltip(ui, v, d);
+        });
+    } else {
+        ui.label("");
+    }
     ui.end_row();
 }
 
 pub fn grid(ui: &mut Ui, v: &View, ids: &[&VarDef], name: &str, acts: &mut Vec<Action>) {
     egui::Grid::new(format!("{name}-grid"))
-        .num_columns(2)
+        .num_columns(3)
         .striped(true)
         .show(ui, |ui| {
             for d in ids
