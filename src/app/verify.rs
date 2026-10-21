@@ -164,7 +164,7 @@ fn led(ui: &mut Ui, s: &Setup) {
 
 fn detector_page(ui: &mut Ui, r: &Report) {
     let qe = spectral::qe();
-    ui.weak("QE traced from datasheet figure 6 (dots). Read noise and full well are interpolated in the read clock between the datasheet's 1, 10 and 54 MHz entries (dots: 700 µV at 1 MHz from the electrical table, 1.9 mV and 1.8 mV derived from the SNR table). The operating point chosen automatically is marked.");
+    ui.weak("QE traced from datasheet figure 6 (dots). Read noise and full well are interpolated in the read clock between the datasheet's 1, 10 and 54 MHz entries (dots: 700 µV at 1 MHz from the electrical table, 1.9 mV and 1.8 mV derived from the SNR table). Below 1 MHz (the datasheet's slowest entry) the values are held at their 1 MHz level, which is why the curves are flat there. The operating point chosen automatically (the read clock needed for the spectra per second you asked for) is marked.");
     plot(
         ui,
         "v-qe",
@@ -191,7 +191,7 @@ fn detector_page(ui: &mut Ui, r: &Report) {
         vec![
             line(
                 "interpolated",
-                sweep(1.0, 54.0, 60, |x| detector::read_noise_at(x * 1e6)),
+                sweep(0.1, 54.0, 270, |x| detector::read_noise_at(x * 1e6)),
             ),
             dots("datasheet", table_pts(1.0)),
             dots(
@@ -208,7 +208,7 @@ fn detector_page(ui: &mut Ui, r: &Report) {
         vec![
             line(
                 "interpolated",
-                sweep(1.0, 54.0, 60, |x| detector::full_well_at(x * 1e6) / 1e3),
+                sweep(0.1, 54.0, 270, |x| detector::full_well_at(x * 1e6) / 1e3),
             ),
             dots(
                 "datasheet swing",
