@@ -93,10 +93,10 @@ pub fn defs() -> Vec<VarDef> {
             .doc("Diameter of the source and detection pinholes in units of the Airy disc (1.22 λ / NA at the pinhole). Small: sharp but dim. Large: bright but less confocal. The physical diameter follows from the magnification, which belongs to the real parts and does not change the performance.")
             .see(&["opt.na", "opt.ratio", "src.i"])
             .refs(CONFOCAL),
-        v("opt.ratio", "Detection / source pinhole size", "", 1.0, 0.25, 4.0, 1.0)
+        v("opt.ratio", "Detection pinhole ÷ source pinhole (ratio)", "× source", 1.0, 0.25, 4.0, 1.0)
             .log()
             .design()
-            .doc("Advanced. 1 is a true confocal. A larger detection pinhole collects more light from diffuse samples at the price of axial resolution and background rejection.")
+            .doc("Advanced. A ratio, not a size: the detection pinhole diameter divided by the source pinhole diameter (both set by the pinhole size above). 1 is a true confocal. A larger detection pinhole collects more light from diffuse samples at the price of axial resolution and background rejection.")
             .see(&["opt.au", "smp.spec"]),
         v("opt.dz", "Chromatic depth range (450-670 nm)", "µm", UM, 100.0 * UM, 3000.0 * UM, 700.0 * UM)
             .doc("A requirement: the height span covered when the in-focus wavelength goes from 450 to 670 nm. Height noise scales with it, so it is never optimised.")
