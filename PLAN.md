@@ -403,3 +403,72 @@ Pinholes 0.95 AU; Airy unit 6.7 µm; **confocal lateral FWHM 4.8 µm** (both fin
 4. Heatmap (2-D) sweeps and snapshot comparison.
 5. Zemax-lite (phase 2.8): lens description to paraxial `f(λ)`, Seidel/real ray trace, ZMX and AGF import.
 6. Replace digitised curves with finer traces; add the measured-spectrum reference normalisation to the Monte Carlo harness.
+
+---
+
+## 7. Rework proposal (awaiting approval; no code written for this section)
+
+### 7.1 Findings from profiling the current build
+
+| Measurement | Result | Consequence |
+|---|---|---|
+| Axial-table rebuild when a pinhole radius changes | about 66 ms | Dragging any coupled slider (stop, focal lengths) changes the normalised pinhole radius, so every frame rebuilds the table: this is the lag |
+| Everything else per repaint | about 9 ms | A fresh `Ctx` recomputes all outputs on every repaint, even with no input change |
+| Output vs `obj.d`, 0.4 % steps | 65.475, 64.954, 64.910, 64.398, 63.892, 63.392, 63.357, ... | The cache key rounds the normalised radius to 0.05, so outputs move in steps. This also rules out finite-difference gradients until it is fixed |
+
+### 7.2 Performance first (the optimiser depends on it)
+
+1. Cache the disk-integral tables `D(v_p; rho, u)` on a `v_p` grid (step about 0.25), built lazily and shared across threads; interpolate linearly in `v_p`; recompute the mirror, plane and lateral integrals from the interpolated tables. No rebuild on slider drag and no stair-steps. The grid can be warmed on a background thread at startup.
+2. Make physics run on a plain `Send` snapshot of resolved values (implement `Get` for that struct) so heavy outputs can run on a worker thread. The UI thread resolves only the cheap couplings and draws the previous outputs (greyed) until the worker finishes; the worker always computes the latest snapshot and skips stale ones. This removes `Rc` memos, `thread_local` caches and boxed closures from the physics path.
+3. Recompute by version number, not on every repaint.
+4. Optimiser evaluations run in parallel with `std::thread::scope` on the same snapshot type.
+5. Turn the profiling test into a timing-budget assertion.
+
+### 7.3 Relations: three tiers instead of removing them all
+
+- **Definitional, always on, bidirectional:** NA = D/(2f), AU = d NA m / (1.22 λ), m = f_obj/f. Without these the sliders can reach states that cannot exist physically.
+- **Optional design constraints (checkboxes in the new pane):** pinhole 2 = pinhole 1, pinhole = k × Airy unit, f_read = 1.1 N_clk rate, dispersion from the grating, and custom "A = B" links (this keeps the original cross-app coupling).
+- **Outputs:** read-only, computed in the background.
+- The pane lists every formula in one view (definitional ones shown as always on), each with its equation, an expandable description and references. The per-parameter gear menus go away; each parameter row keeps only a slider, a component picker (when the part kind has components) and a small marker showing why it is locked.
+
+**Every slider draggable.** Two-variable relations are easy (drag d, AU follows; drag AU, d follows). For three-variable relations each formula declares a priority order of variables that give way: the one that moves is the first that is not being dragged, not set by a component, and not already solved by another active relation. If none qualifies the row is flagged as over-constrained. This reverses my earlier "locked dependent" design.
+
+### 7.4 Optimisation pane
+
+- **Objective** (to be chosen): minimise or maximise an output, with other outputs as constraints (for example minimise `σ_z` subject to lateral FWHM ≤ X and SNR ≥ Y), or a weighted sum. Warnings can be marked as hard constraints so "flag, don't cap" still holds in normal use.
+- **Discrete mode:** all combinations of chosen component slots, with restriction checkboxes ("same pinhole on both sides", "same lens on both sides"). The combination count is shown before running; samples are scenario inputs and excluded by default. Each combination is evaluated at the current continuous values, ranked, and a click applies the row.
+- **Continuous mode:** gradient descent on normalised coordinates (log scale for log sliders, box bounds from slider ranges), central differences, backtracking line search, NaN treated as infeasible, Monte Carlo outputs excluded (discontinuous). Nelder–Mead offered as a derivative-free alternative. No autodiff: forward-mode dual numbers would make the physics generic over the number type, and the cost still grows with the number of parameters.
+- **Stretch:** snap the continuous optimum to the nearest catalog part per slot and evaluate the top three per slot.
+- **Known risk:** aberration currently only scales the signal (Strehl) and does not widen the PSF, so an unconstrained optimiser will push NA up. Hard-constraint flags (Strehl, table validity, link limits) address this until the aberration model improves.
+
+### 7.5 Formula rendering
+
+One source `formulas.toml` (id, Typst math, description, references). Start with Unicode text; later `build.rs` renders SVGs with Typst (white text, tinted in egui for the dark theme) loaded through egui's SVG support, with `typst` added to the flake's `nativeBuildInputs` and falling back to Unicode when it is missing. A test checks that every formula id has an implementation and the reverse.
+
+### 7.6 Phases
+
+1. Performance and engine rework (tiers, drag semantics, worker thread).
+2. Constraints pane.
+3. Discrete optimisation, then continuous, then snapping to catalog parts.
+4. Typst rendering.
+
+Each phase ends with tests, clippy and a review.
+
+### 7.7 Decisions (from the user)
+
+- **Objective:** fix the sensor speed (acquisition rate), then minimise a weighted sum of lateral precision and height precision, with a hard limit on each: the cost becomes very large when either precision exceeds its limit. Warnings can additionally be marked as hard constraints.
+- **Drag policy:** per-formula priority order of the variable that gives way.
+- **Continuous optimiser:** three selectable modes: Nelder-Mead only, gradient descent only, and gradient descent with Nelder-Mead as the fallback.
+- **Formulas:** Unicode first, Typst rendering last.
+
+### 7.8 Status of the rework (implemented)
+
+**Performance.** The disk-integral tables are cached on a pinhole-radius grid (step 0.25, built lazily and in parallel at start-up) and interpolated, so changing a pinhole radius no longer rebuilds anything and outputs are smooth. Measured: a slider drag step costs 0.18 ms on the UI thread (settle plus the lock flags); a full evaluation is about 5 ms (about 9 ms with the Monte Carlo outputs) and runs on a worker thread, so the UI shows the previous numbers (greyed only after 150 ms) until the new ones arrive. Sweeps and optimisation also run off the UI thread. Timing budgets are asserted in tests.
+
+**Engine.** There are no per-parameter rules or gear menus any more. State is a plain value vector plus component locks, active constraints and custom links. Formulas are three kinds: always-on definitions (NA = D/2f, magnification, pinhole size in Airy units; each draggable in every direction through a per-formula give-way order), optional design constraints (identical pinholes, read clock from rate, exposure from rate, wavefront error from singlet aberration, dispersion from grating) and read-only outputs computed from a snapshot of the values. Only a component locks a slider; dragging a slider that a constraint sets turns that constraint off and says so in the status line. A part that a component fixes makes any slider that would have to move it unmovable, with the reason in its tooltip.
+
+**Constraints pane.** All formulas in one view with checkbox, Unicode equation, description, give-way order, references, conflict/override status, and custom A = B links.
+
+**Optimise pane.** Objective: fixed acquisition rate; cost = Σ weight · value / limit for lateral FWHM and height precision, plus a steep quadratic penalty past each limit, plus optional hard constraints (Strehl ≥ 0.8, no saturation, pinholes inside the tables). Continuous mode: choose design variables and bounds (unit cube, log-scaled where the slider is), Nelder-Mead, gradient descent (parallel central differences, projected backtracking line search) or gradient descent with Nelder-Mead fallback; runs on a worker with progress, Stop and Apply; tied variables are rejected before the run with the constraint named. Discrete mode: slots for each part kind (same part on both sides optional), combination count shown, parallel ranking, one-click apply, and a snap of the continuous optimum to the three nearest catalog parts per slot. On the default design, gradient descent with fallback improves the cost from 1.71 to 1.38 in 1.4 s (lateral 4.75 → 3.97 µm, height 227 → 177 nm) and stops at the Strehl = 0.8 hard limit; without that constraint the optimiser would push NA up because aberration only scales the signal.
+
+**Not done.** Typst formula rendering (Unicode shown), snapshot comparison of optimisation runs, 2-D sweeps. "Lateral precision" is mapped to the confocal lateral FWHM.

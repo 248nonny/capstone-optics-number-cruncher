@@ -1,7 +1,8 @@
 use super::plots::Series;
-use crate::engine::{ctx::{Ctx, Model}, get::Get, var::Spacing};
+use crate::engine::{background::Latest, model::Model, state::State, var::Spacing};
+use crate::model::outputs;
 use eframe::egui::{self, ComboBox, Ui};
-use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct Sweep {
     pub x: String,
@@ -9,7 +10,9 @@ pub struct Sweep {
     pub hi: f64,
     pub n: usize,
     pub ys: Vec<String>,
-    cache: Option<(u64, String, Vec<Series>)>,
+    latest: Latest<(String, Vec<Series>)>,
+    submitted: String,
+    shown: (String, Vec<Series>),
 }
 
 impl Sweep {
@@ -21,31 +24,45 @@ impl Sweep {
             hi: 100e-6 / d.scale,
             n: 40,
             ys: vec!["lat.fwhm".into(), "ph.snr".into(), "pr.sigma_z".into()],
-            cache: None,
+            latest: Latest::new(),
+            submitted: String::new(),
+            shown: Default::default(),
         }
     }
 
-    fn run(&self, m: &Model) -> Vec<Series> {
-        let d = m.def(&self.x);
-        let log = d.spacing == Spacing::Log && self.lo > 0.0;
-        let xs: Vec<f64> = (0..self.n)
-            .map(|k| {
-                let t = k as f64 / (self.n - 1) as f64;
-                if log { self.lo * (self.hi / self.lo).powf(t) } else { self.lo + (self.hi - self.lo) * t }
-            })
-            .collect();
-        let rows: Vec<Ctx> = xs.iter().map(|&x| Ctx::with(m, HashMap::from([(self.x.clone(), x * d.scale)]))).collect();
-        self.ys
-            .iter()
-            .map(|y| {
-                let yd = m.def(y);
-                (format!("{} ({})", yd.label, yd.unit), xs.iter().zip(&rows).map(|(&x, c)| [x, c.g(y) / yd.scale]).collect())
-            })
-            .collect()
+    fn job(&self, m: Arc<Model>, s: State, key: String) -> impl FnOnce() -> (String, Vec<Series>) + Send + 'static {
+        let (x, lo, hi, n, ys) = (self.x.clone(), self.lo, self.hi, self.n, self.ys.clone());
+        move || {
+            let d = m.def(&x);
+            let log = d.spacing == Spacing::Log && lo > 0.0;
+            let xs: Vec<f64> = (0..n)
+                .map(|k| {
+                    let t = k as f64 / (n - 1) as f64;
+                    if log { lo * (hi / lo).powf(t) } else { lo + (hi - lo) * t }
+                })
+                .collect();
+            let ids: Vec<&str> = ys.iter().map(String::as_str).collect();
+            let rows: Vec<Vec<f64>> = xs
+                .iter()
+                .map(|&v| {
+                    let mut t = s.clone();
+                    t.set(&m, &x, v * d.scale);
+                    outputs::evaluate_ids(&t.values, &ids)
+                })
+                .collect();
+            let series = ys
+                .iter()
+                .enumerate()
+                .map(|(k, y)| {
+                    let yd = m.def(y);
+                    (format!("{} ({})", yd.label, yd.unit), xs.iter().zip(&rows).map(|(&x, r)| [x, r[k] / yd.scale]).collect())
+                })
+                .collect();
+            (key, series)
+        }
     }
 
-    pub fn ui(&mut self, ui: &mut Ui, m: &Model, version: u64) {
-        let key = format!("{}{}{}{}{:?}", self.x, self.lo, self.hi, self.n, self.ys);
+    pub fn ui(&mut self, ui: &mut Ui, m: &Arc<Model>, s: &State, version: u64) {
         ui.horizontal_wrapped(|ui| {
             ui.label("X:");
             ComboBox::from_id_salt("sweep-x").width(260.0).selected_text(format!("{} ({})", m.def(&self.x).label, self.x)).show_ui(ui, |ui| {
@@ -75,17 +92,24 @@ impl Sweep {
                 }
             });
         });
-        if self.cache.as_ref().is_none_or(|(v, k, _)| *v != version || *k != key) {
-            self.cache = Some((version, key, if self.n > 1 && self.lo != self.hi { self.run(m) } else { vec![] }));
+        let key = format!("{version}|{}|{}|{}|{}|{:?}", self.x, self.lo, self.hi, self.n, self.ys);
+        if self.submitted != key && self.lo != self.hi {
+            self.submitted = key.clone();
+            let ctx = ui.ctx().clone();
+            self.latest.submit(self.job(m.clone(), s.clone(), key), move || ctx.request_repaint());
+        }
+        if let Some(done) = self.latest.take() {
+            self.shown = done;
+        }
+        if self.latest.busy() {
+            ui.weak("Computing…");
         }
         let unit = m.def(&self.x).unit;
-        let series = self.cache.as_ref().map(|c| c.2.clone()).unwrap_or_default();
-        let per = (ui.available_height() / series.len().max(1) as f32).max(180.0);
+        let per = (ui.available_height() / self.shown.1.len().max(1) as f32).max(180.0);
         egui::ScrollArea::vertical().show(ui, |ui| {
-            for s in series {
-                let id = format!("sweep-{}", s.0);
-                egui_plot::Plot::new(id).height(per).x_axis_label(format!("{} ({unit})", m.def(&self.x).label)).legend(egui_plot::Legend::default()).show(ui, |p| {
-                    p.line(egui_plot::Line::new(s.0, egui_plot::PlotPoints::from(s.1)));
+            for (name, pts) in &self.shown.1 {
+                egui_plot::Plot::new(format!("sweep-{name}")).height(per).x_axis_label(format!("{} ({unit})", m.def(&self.x).label)).legend(egui_plot::Legend::default()).show(ui, |p| {
+                    p.line(egui_plot::Line::new(name.clone(), egui_plot::PlotPoints::from(pts.clone())));
                 });
             }
         });

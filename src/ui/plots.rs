@@ -1,8 +1,8 @@
-use crate::engine::{ctx::Ctx, get::Get};
+use crate::engine::{get::Get, values::Values};
 use crate::physics::{confocal, geometry, signal::Signal, special::airy};
 use eframe::egui::Ui;
 use egui_plot::{Legend, Line, Plot, PlotPoints};
-use std::{f64::consts::PI, rc::Rc};
+use std::f64::consts::PI;
 
 pub const KINDS: [&str; 5] = ["Detector spectrum", "Axial response", "Focus vs wavelength", "Lateral PSF", "On-focus SNR"];
 
@@ -32,10 +32,10 @@ fn spectrum(s: &Signal) -> (&'static str, &'static str, Vec<Series>) {
     ])
 }
 
-fn axial(c: &Ctx, s: &Signal) -> (&'static str, &'static str, Vec<Series>) {
+fn axial(c: &Values, s: &Signal) -> (&'static str, &'static str, Vec<Series>) {
     let ax = confocal::axial(s.vp[0], s.vp[1]);
     let lam = c.g("sys.lam0");
-    let na = c.g("obj.na_ill").min(c.g("obj.na_det"));
+    let na = geometry::nas(c).into_iter().fold(f64::MAX, f64::min);
     let to_um = lam / (2.0 * PI * na * na) * 1e6;
     let zs = || (-60..=60).map(|k| k as f64 * 0.5);
     ("height from focus (um)", "relative response", vec![
@@ -55,7 +55,7 @@ fn snr(s: &Signal) -> (&'static str, &'static str, Vec<Series>) {
     ])
 }
 
-fn lateral(c: &Ctx) -> (&'static str, &'static str, Vec<Series>) {
+fn lateral(c: &Values) -> (&'static str, &'static str, Vec<Series>) {
     let (lam, na, radius) = (c.g("sys.lam0"), geometry::nas(c), geometry::pinhole_radii(c));
     let step = confocal::lateral_step(lam, na);
     let p = confocal::lateral_profile(lam, na, radius, step, 200);
@@ -67,7 +67,7 @@ fn lateral(c: &Ctx) -> (&'static str, &'static str, Vec<Series>) {
     ])
 }
 
-pub fn draw(ui: &mut Ui, kind: usize, c: &Ctx, s: &Rc<Signal>) {
+pub fn draw(ui: &mut Ui, kind: usize, c: &Values, s: &Signal) {
     let (x, y, series) = match kind {
         0 => spectrum(s),
         1 => axial(c, s),

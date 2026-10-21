@@ -1,66 +1,72 @@
-use crate::engine::{ctx::Model, source::Source};
+use crate::engine::{model::Model, state::State};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-enum Saved {
-    Manual(f64),
-    Link(String),
-    Rule(String),
-    Component(String),
+#[derive(Serialize, Deserialize, Default)]
+struct Saved {
+    #[serde(default)]
+    values: BTreeMap<String, f64>,
+    #[serde(default)]
+    components: BTreeMap<String, String>,
+    #[serde(default)]
+    constraints: BTreeMap<String, bool>,
+    #[serde(default)]
+    links: Vec<(String, String)>,
 }
 
-fn to_saved(m: &Model, s: &Source) -> Saved {
-    match s {
-        Source::Manual(x) => Saved::Manual(*x),
-        Source::Link(id) => Saved::Link(id.clone()),
-        Source::Rule(r) => Saved::Rule(m.rules[*r].out().into()),
-        Source::Component(c) => Saved::Component(c.clone()),
+pub fn save(m: &Model, s: &State) -> Result<String, String> {
+    let inputs = m.defs.iter().enumerate().filter(|(_, d)| !d.output);
+    let saved = Saved {
+        values: inputs.clone().map(|(i, d)| (d.id.clone(), s.values.v[i])).collect(),
+        components: inputs.filter_map(|(i, d)| Some((d.id.clone(), s.locked[i].clone()?))).collect(),
+        constraints: m.formulas.iter().zip(&s.active).map(|(f, &on)| (f.id.clone(), on)).collect(),
+        links: s.links.clone(),
+    };
+    toml::to_string(&saved).map_err(|e| e.to_string())
+}
+
+pub fn load(m: &Model, s: &mut State, text: &str) -> Result<usize, String> {
+    let saved: Saved = toml::from_str(text).map_err(|e| e.to_string())?;
+    let mut n = 0;
+    for (id, x) in &saved.values {
+        if let Some(&i) = m.index.get(id) {
+            s.values.v[i] = *x;
+            s.locked[i] = saved.components.get(id).cloned();
+            n += 1;
+        }
     }
-}
-
-fn from_saved(m: &Model, s: Saved) -> Option<Source> {
-    Some(match s {
-        Saved::Manual(x) => Source::Manual(x),
-        Saved::Link(id) => Source::Link(id),
-        Saved::Rule(out) => Source::Rule(m.rules.iter().position(|r| r.out() == out)?),
-        Saved::Component(c) => Source::Component(c),
-    })
-}
-
-pub fn save(m: &Model) -> Result<String, String> {
-    let all: BTreeMap<_, _> = m.sources.iter().map(|(k, s)| (k.clone(), to_saved(m, s))).collect();
-    toml::to_string(&all).map_err(|e| e.to_string())
-}
-
-pub fn load(m: &mut Model, text: &str) -> Result<usize, String> {
-    let saved: BTreeMap<String, Saved> = toml::from_str(text).map_err(|e| e.to_string())?;
-    let sources: Vec<_> = saved.into_iter().filter(|(k, _)| m.index.contains_key(k)).filter_map(|(k, s)| Some((k, from_saved(m, s)?))).collect();
-    let n = sources.len();
-    m.sources.extend(sources);
+    for (f, on) in m.formulas.iter().zip(s.active.iter_mut()) {
+        *on = saved.constraints.get(&f.id).copied().unwrap_or(*on);
+    }
+    s.links = saved.links.into_iter().filter(|(a, b)| m.index.contains_key(a) && m.index.contains_key(b)).collect();
+    s.settle(m, &[]);
     Ok(n)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{apply_component, build};
+    use crate::model::build;
 
     #[test]
-    fn scenario_round_trips_by_rule_id() {
-        let mut m = build();
-        m.set_value("pin1.d", 33e-6);
-        apply_component(&mut m, "adc", "LTC2225 (12-bit 10 MS/s parallel) + differential epc901");
-        let text = save(&m).unwrap();
-        assert!(text.contains("Rule = \"obj.na\""));
-        let mut fresh = build();
-        assert!(load(&mut fresh, &text).unwrap() > 50);
-        assert_eq!(fresh.sources, m.sources);
+    fn scenario_round_trips() {
+        let m = build();
+        let mut s = State::new(&m);
+        s.set(&m, "pin1.d", 33e-6);
+        s.apply_component(&m, "adc", "LTC2225 (12-bit 10 MS/s parallel) + differential epc901");
+        s.add_link(&m, "dcoll.f", "coll.f");
+        let text = save(&m, &s).unwrap();
+        let mut fresh = State::new(&m);
+        assert!(load(&m, &mut fresh, &text).unwrap() > 50);
+        assert_eq!(fresh.values.v.iter().zip(&s.values.v).filter(|(a, b)| (*a - *b).abs() > 1e-12 * b.abs().max(1.0)).count(), 0);
+        assert_eq!(fresh.locked, s.locked);
+        assert_eq!(fresh.links, s.links);
     }
 
     #[test]
     fn unknown_ids_are_skipped() {
-        let mut m = build();
-        assert_eq!(load(&mut m, "[\"nope.x\"]\nManual = 1.0\n").unwrap(), 0);
+        let m = build();
+        let mut s = State::new(&m);
+        assert_eq!(load(&m, &mut s, "[values]\n\"nope.x\" = 1.0\n").unwrap(), 0);
     }
 }

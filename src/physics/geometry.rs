@@ -2,8 +2,16 @@ use super::dispersion::f_obj;
 use crate::engine::get::Get;
 use std::f64::consts::PI;
 
+pub fn na_ill(g: &dyn Get) -> f64 {
+    g.g("obj.na").min(g.g("coll.d") / (2.0 * g.g("obj.f")))
+}
+
+pub fn na_det(g: &dyn Get) -> f64 {
+    g.g("obj.na").min(g.g("dcoll.d") / (2.0 * g.g("obj.f")))
+}
+
 pub fn nas(g: &dyn Get) -> [f64; 2] {
-    [g.g("obj.na_ill"), g.g("obj.na_det")]
+    [na_ill(g), na_det(g)]
 }
 
 pub fn pinhole_radii(g: &dyn Get) -> [f64; 2] {

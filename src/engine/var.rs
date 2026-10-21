@@ -16,21 +16,22 @@ pub struct VarDef {
     pub spacing: Spacing,
     pub choices: &'static [&'static str],
     pub output: bool,
+    pub design: bool,
     pub doc: &'static str,
 }
 
 impl VarDef {
     pub fn new(id: &str, label: &'static str, unit: &'static str, scale: f64, min: f64, max: f64, default: f64) -> Self {
-        Self { id: id.into(), label, unit, scale, min, max, default, spacing: Spacing::Lin, choices: &[], output: false, doc: "" }
+        Self { id: id.into(), label, unit, scale, min, max, default, spacing: Spacing::Lin, choices: &[], output: false, design: false, doc: "" }
+    }
+
+    pub fn design(mut self) -> Self {
+        self.design = true;
+        self
     }
 
     pub fn log(mut self) -> Self {
         self.spacing = Spacing::Log;
-        self
-    }
-
-    pub fn out(mut self) -> Self {
-        self.output = true;
         self
     }
 
@@ -49,10 +50,6 @@ impl VarDef {
 
     pub fn discrete(&self) -> bool {
         !self.choices.is_empty()
-    }
-
-    pub fn local(&self) -> &str {
-        self.id.split_once('.').map_or(&self.id, |(_, l)| l)
     }
 
     pub fn prefix(&self) -> &str {

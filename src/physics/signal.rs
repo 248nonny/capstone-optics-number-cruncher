@@ -1,4 +1,4 @@
-use super::{confocal, geometry, halfmax, montecarlo, detector, dispersion as disp, radiometry as rad, spectrometer as spec};
+use super::{confocal, geometry, halfmax, detector, dispersion as disp, radiometry as rad, spectrometer as spec};
 use crate::engine::get::Get;
 use std::f64::consts::PI;
 
@@ -26,7 +26,6 @@ pub struct Signal {
     pub snr_curve: Vec<f64>,
     pub snr_min: f64,
     pub usable: f64,
-    pub mc_lam: f64,
 }
 
 pub const SNR_TARGET: f64 = 10.0;
@@ -107,7 +106,6 @@ pub fn compute(g: &dyn Get) -> Signal {
         snr_min: inner.iter().cloned().fold(f64::INFINITY, f64::min),
         usable: inner.iter().filter(|&&s| s >= SNR_TARGET).count() as f64 / inner.len() as f64,
         snr_curve,
-        mc_lam: montecarlo::centroid_sigma(&sig, &var, &lam),
         lam,
         sig,
         bg,

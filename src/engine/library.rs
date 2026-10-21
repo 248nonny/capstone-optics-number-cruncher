@@ -38,10 +38,6 @@ impl Library {
         lib
     }
 
-    pub fn value(&self, name: &str, local: &str) -> Option<f64> {
-        self.comps.iter().find(|c| c.name == name)?.params.get(local).copied()
-    }
-
     pub fn of_kind<'a>(&'a self, kind: &'a str) -> impl Iterator<Item = &'a Component> {
         self.comps.iter().filter(move |c| c.kind == kind)
     }
