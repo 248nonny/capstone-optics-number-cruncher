@@ -635,3 +635,4 @@ The surface can sit anywhere in the depth range, and the wavelength that is in f
 ## 10. Progress log (overnight redesign)
 
 - Step 1 done: `src/system/` holds the flat system layer (17 inputs, polychromatic nodes across 450-670 nm, automatic exposure/binning/read-out). Windowed Fisher information matches the full spectrum within 2 %, a full evaluation takes about 4 ms once the tables are warm. The old engine and UI are untouched and still work.
+- Step 2 done: `src/parts/` maps selected catalog parts (pinhole, collimator, objective + stop, grating) to the system knobs. The faithfulness test (`parts::tests::effective_parameters_match_the_detailed_model`) shows NA, pinhole Airy units, throughput, wavefront error, depth range, power into pinhole 1, lateral FWHM and mirror axial FWHM agree with the old detailed model.
