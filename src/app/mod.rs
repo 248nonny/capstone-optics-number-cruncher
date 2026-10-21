@@ -44,6 +44,7 @@ pub struct App {
     optimize: optimize::Optimize,
     parts: parts_panel::PartsPanel,
     verify_page: usize,
+    show_parts: bool,
     objective: crate::optimize::problem::Objective,
     status: String,
     dirty: bool,
@@ -80,6 +81,7 @@ impl App {
             optimize,
             parts,
             verify_page: page.min(6),
+            show_parts: true,
             objective: Default::default(),
             status: String::new(),
             dirty: true,
@@ -198,6 +200,8 @@ impl eframe::App for App {
                 ui.selectable_value(&mut self.tab, Tab::Optimize, "Optimize");
                 ui.selectable_value(&mut self.tab, Tab::Verify, "Verify");
                 ui.separator();
+                ui.checkbox(&mut self.show_parts, "Real components");
+                ui.separator();
                 save = ui.button("Save scenario").clicked();
                 load = ui.button("Load scenario").clicked();
                 ui.label(self.status.as_str());
@@ -218,7 +222,7 @@ impl eframe::App for App {
         });
         SidePanel::left("knobs")
             .default_width(430.0)
-            .min_width(380.0)
+            .width_range(0.0..=f32::INFINITY)
             .show(ctx, |ui| {
                 ScrollArea::both()
                     .auto_shrink([false, false])
@@ -226,8 +230,8 @@ impl eframe::App for App {
             });
         SidePanel::right("parts")
             .default_width(430.0)
-            .min_width(380.0)
-            .show(ctx, |ui| {
+            .width_range(0.0..=f32::INFINITY)
+            .show_animated(ctx, self.show_parts, |ui| {
                 ScrollArea::both()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
